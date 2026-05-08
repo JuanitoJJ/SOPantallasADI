@@ -1,0 +1,66 @@
+/* corporate.qss - Estilo corporativo para el sistema de kiosco */
+
+QMainWindow {
+    background-color: #f5f6fa;
+}
+
+QWidget#MainLauncher {
+    background-color: #f5f6fa;
+}
+
+QLabel#HeaderLabel {
+    font-size: 32px;
+    font-weight: bold;
+    color: #2f3640;
+    margin: 20px;
+}
+
+/* Estilo para los botones de aplicaciones */
+QPushButton#AppButton {
+    background-color: #ffffff;
+    border: 2px solid #dcdde1;
+    border-radius: 15px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #2f3640;
+    padding: 20px;
+    min-width: 180px;
+    min-height: 180px;
+}
+
+QPushButton#AppButton:pressed {
+    background-color: #dcdde1;
+    border-color: #3498db;
+}
+
+QPushButton#AdminButton {
+    background-color: transparent;
+    border: none;
+    color: #7f8c8d;
+    font-size: 14px;
+}
+
+QDialog {
+    background-color: #ffffff;
+    border-radius: 10px;
+}
+
+QLineEdit {
+    padding: 10px;
+    border: 1px solid #bdc3c7;
+    border-radius: 5px;
+    font-size: 16px;
+}
+
+QPushButton#PrimaryButton {
+    background-color: #3498db;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+QPushButton#PrimaryButton:pressed {
+    background-color: #2980b9;
+}
