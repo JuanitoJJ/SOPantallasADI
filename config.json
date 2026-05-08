@@ -2,9 +2,9 @@
     "admin_password": "admin",
     "apps": [
         {
-            "name": "Microsoft Teams",
-            "path": "C:\\Users\\JuanJarqueOrtiz\\AppData\\Local\\Microsoft\\Teams\\current\\Teams.exe",
-            "icon": "assets/icons/teams.png"
+            "name": "Winbox",
+            "path": "C:\\Users\\JJARQUE\\Desktop\\winbox64.exe",
+            "icon": "assets/icons\\winbox64.png"
         }
     ],
     "corporate_name": "SISTEMA CORPORATIVO"

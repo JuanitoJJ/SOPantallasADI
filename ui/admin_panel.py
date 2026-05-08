@@ -3,6 +3,8 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QLineEdit, QFormLayout, QMessageBox)
 from PyQt6.QtCore import Qt
 
+from core.icon_utils import extract_and_save_icon
+
 class AdminPanelDialog(QDialog):
     def __init__(self, config_manager, parent=None):
         super().__init__(parent)
@@ -11,13 +13,13 @@ class AdminPanelDialog(QDialog):
 
     def init_ui(self):
         self.setWindowTitle("Panel de Control - Administrador")
-        self.resize(600, 450)
+        self.resize(700, 500)
 
         layout = QVBoxLayout(self)
 
         # Título
         title = QLabel("Gestión de Aplicaciones")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; margin-bottom: 10px;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; margin-bottom: 10px; color: #333;")
         layout.addWidget(title)
 
         # Lista de aplicaciones
@@ -36,12 +38,13 @@ class AdminPanelDialog(QDialog):
         # Formulario para añadir nueva app
         form_group = QVBoxLayout()
         form_title = QLabel("Añadir Nueva Aplicación")
-        form_title.setStyleSheet("font-weight: bold; margin-top: 15px;")
+        form_title.setStyleSheet("font-weight: bold; margin-top: 15px; color: #333;")
         form_group.addWidget(form_title)
 
         form_layout = QFormLayout()
         self.name_input = QLineEdit()
         self.path_input = QLineEdit()
+        self.path_input.setPlaceholderText("C:\\Ruta\\al\\programa.exe")
         
         browse_btn = QPushButton("Examinar...")
         browse_btn.clicked.connect(self.browse_exe)
@@ -57,6 +60,7 @@ class AdminPanelDialog(QDialog):
         
         add_btn = QPushButton("Añadir Aplicación")
         add_btn.setObjectName("PrimaryButton")
+        add_btn.setFixedHeight(45)
         add_btn.clicked.connect(self.add_app)
         form_group.addWidget(add_btn)
 
@@ -64,30 +68,40 @@ class AdminPanelDialog(QDialog):
 
         # Botón para cerrar la aplicación completamente
         exit_app_btn = QPushButton("Cerrar Kiosco y Volver a Windows")
-        exit_app_btn.setStyleSheet("background-color: #e74c3c; color: white; margin-top: 20px;")
+        exit_app_btn.setStyleSheet("background-color: #e74c3c; color: white; margin-top: 20px; padding: 10px;")
         exit_app_btn.clicked.connect(self.exit_kiosk)
         layout.addWidget(exit_app_btn)
 
     def refresh_list(self):
         self.app_list.clear()
         for app in self.config_manager.get_apps():
-            self.app_list.addItem(f"{app['name']} ({app['path']})")
+            item = QListWidgetItem(f"{app['name']}")
+            item.setToolTip(app['path'])
+            self.app_list.addItem(item)
 
     def browse_exe(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Seleccionar Ejecutable", "", "Executables (*.exe)")
+        file_path, _ = QFileDialog.getOpenFileName(self, "Seleccionar Ejecutable", "C:\\Program Files", "Executables (*.exe)")
         if file_path:
-            self.path_input.setText(file_path.replace("/", "\\"))
+            clean_path = file_path.replace("/", "\\")
+            self.path_input.setText(clean_path)
+            # Autocompletar nombre si está vacío
+            if not self.name_input.text():
+                name = os.path.splitext(os.path.basename(clean_path))[0]
+                self.name_input.setText(name)
 
     def add_app(self):
         name = self.name_input.text()
         path = self.path_input.text()
 
         if name and path:
-            self.config_manager.add_app(name, path)
+            # Extraer icono automáticamente
+            icon_path = extract_and_save_icon(path)
+            
+            self.config_manager.add_app(name, path, icon_path)
             self.refresh_list()
             self.name_input.clear()
             self.path_input.clear()
-            QMessageBox.information(self, "Éxito", "Aplicación añadida correctamente")
+            QMessageBox.information(self, "Éxito", f"Aplicación '{name}' añadida con éxito.")
         else:
             QMessageBox.warning(self, "Error", "Debes completar nombre y ruta")
 
