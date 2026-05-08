@@ -1,0 +1,11 @@
+{
+    "admin_password": "admin",
+    "apps": [
+        {
+            "name": "Microsoft Teams",
+            "path": "C:\\Users\\JuanJarqueOrtiz\\AppData\\Local\\Microsoft\\Teams\\current\\Teams.exe",
+            "icon": "assets/icons/teams.png"
+        }
+    ],
+    "corporate_name": "SISTEMA CORPORATIVO"
+}
