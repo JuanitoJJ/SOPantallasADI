@@ -1,5 +1,9 @@
 import json
 import os
+from dotenv import load_dotenv
+
+# Cargar variables de entorno desde .env si existe
+load_dotenv()
 
 CONFIG_FILE = "config.json"
 
@@ -25,7 +29,10 @@ class ConfigManager:
                     "icon": "assets/icons/teams.png"
                 }
             ],
-            "corporate_name": "SISTEMA CORPORATIVO"
+            "corporate_name": "SISTEMA CORPORATIVO",
+            "calendar_enabled": False,
+            "client_id": "",
+            "tenant_id": "common"
         }
         self.save_config(default_config)
         return default_config
@@ -43,8 +50,26 @@ class ConfigManager:
         return self.config.get("apps", [])
 
     def get_admin_password(self):
+        # Priorizar variable de entorno
+        env_pass = os.getenv("ADMIN_PASSWORD")
+        if env_pass:
+            return env_pass
         return self.config.get("admin_password", "admin")
     
+    def get_client_id(self):
+        # Priorizar variable de entorno
+        env_client = os.getenv("CLIENT_ID")
+        if env_client:
+            return env_client
+        return self.config.get("client_id", "")
+
+    def get_tenant_id(self):
+        # Priorizar variable de entorno
+        env_tenant = os.getenv("TENANT_ID")
+        if env_tenant:
+            return env_tenant
+        return self.config.get("tenant_id", "common")
+
     def add_app(self, name, path, icon=""):
         self.config["apps"].append({
             "name": name,

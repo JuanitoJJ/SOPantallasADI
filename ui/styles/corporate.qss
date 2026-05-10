@@ -70,6 +70,19 @@ QPushButton#EndMeetingButton:pressed {
     background-color: #c0392b;
 }
 
+QPushButton#RunningAppsButton {
+    background-color: #3498db;
+    color: white;
+    border-radius: 15px;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 15px 30px;
+}
+
+QPushButton#RunningAppsButton:pressed {
+    background-color: #2980b9;
+}
+
 QSlider::groove:horizontal {
     border: 1px solid #34495e;
     height: 12px;
