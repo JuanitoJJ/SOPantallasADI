@@ -16,6 +16,7 @@ class AdminLoginDialog(QDialog):
         layout = QVBoxLayout(self)
 
         label = QLabel("Ingrese la contraseña de administrador:")
+        label.setStyleSheet("color: #333333; font-weight: bold;")
         layout.addWidget(label)
 
         self.password_input = QLineEdit()

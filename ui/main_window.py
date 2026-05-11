@@ -2,8 +2,8 @@ import os
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QGridLayout, 
                              QPushButton, QLabel, QFrame, QSpacerItem, QSizePolicy,
                              QSlider, QHBoxLayout, QMessageBox, QGraphicsOpacityEffect)
-from PyQt6.QtCore import Qt, QSize, QTimer, QDateTime, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QIcon, QColor
+from PyQt6.QtCore import Qt, QSize, QTimer, QDateTime, QPropertyAnimation, QEasingCurve, QUrl
+from PyQt6.QtGui import QIcon, QColor, QDesktopServices
 from core.config_manager import ConfigManager
 from core.app_launcher import launch_application, close_all_launched_apps
 from core.volume_manager import set_system_volume, get_current_volume
@@ -33,11 +33,11 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self.update_time)
         self.timer.start(1000)
         
-        # Timer para actualizar el calendario cada 10 minutos
+        # Timer para actualizar el calendario cada 1 minuto
         if self.calendar_manager:
             self.cal_timer = QTimer(self)
             self.cal_timer.timeout.connect(self.update_calendar)
-            self.cal_timer.start(10 * 60 * 1000) # 10 minutos
+            self.cal_timer.start(1 * 60 * 1000) # 1 minuto
             self.update_calendar() # Carga inicial
 
     def init_ui(self):
@@ -163,6 +163,11 @@ class MainWindow(QMainWindow):
         
         # Ponemos el admin en el layout izquierdo al fondo
         footer_layout = QHBoxLayout()
+        
+        self.signature = QLabel("Programado por Juan Jarque")
+        self.signature.setObjectName("SignatureLabel")
+        footer_layout.addWidget(self.signature)
+        
         footer_layout.addStretch()
         footer_layout.addWidget(self.admin_btn)
         left_panel.addLayout(footer_layout)
@@ -182,11 +187,33 @@ class MainWindow(QMainWindow):
             if widget:
                 widget.setParent(None)
                 
-        meetings = self.calendar_manager.get_upcoming_meetings()
+        raw_meetings = self.calendar_manager.get_upcoming_meetings()
         
+        # Filtrar solo las de HOY en hora local
+        today = datetime.now().date()
+        meetings = []
+        
+        for mtg in raw_meetings:
+            try:
+                # El formato de Microsoft es "2023-10-27T10:00:00.0000000"
+                start_dt_str = mtg['start']['dateTime'].split('.')[0]
+                start_dt_utc = datetime.strptime(start_dt_str, "%Y-%m-%dT%H:%M:%S")
+                
+                # Convertir a local (ajuste simple si no usamos pytz)
+                # Como recibimos UTC, sumamos el desfase local si es necesario o simplemente comparamos fechas
+                # Para España (UTC+1/UTC+2), un ajuste de +2h es común en verano
+                # Pero lo ideal es usar la fecha del objeto datetime
+                
+                # Intentamos detectar si la reunión cae hoy localmente
+                # Para simplificar, aceptamos las que empiecen hoy o terminen hoy
+                if start_dt_utc.date() == today:
+                    meetings.append(mtg)
+            except Exception as e:
+                print(f"Error procesando fecha de reunión: {e}")
+
         if not meetings:
             no_meetings = QLabel("No hay más reuniones para hoy.")
-            no_meetings.setStyleSheet("color: #888; font-style: italic; font-size: 16px; margin-top: 10px;")
+            no_meetings.setStyleSheet("color: #bdc3c7; font-style: italic; font-size: 16px; margin-top: 10px;")
             self.meetings_container.addWidget(no_meetings)
             return
 
@@ -203,22 +230,45 @@ class MainWindow(QMainWindow):
             """)
             card_layout = QVBoxLayout(card)
             
-            subject = QLabel(mtg.get('subject', 'Sin Título'))
+            subject_text = mtg.get('subject', 'Sin Título')
+            subject = QLabel(subject_text)
             subject.setStyleSheet("color: white; font-weight: bold; font-size: 16px;")
             subject.setWordWrap(True)
             
-            # Formatear horas
+            # Formatear horas (ajuste manual para España UTC+2 por ahora)
             try:
-                # La API devuelve UTC, podríamos convertir a local, pero simplificamos tomando la parte horaria
                 start_str = mtg['start']['dateTime'].split('T')[1][:5]
-                end_str = mtg['end']['dateTime'].split('T')[1][:5]
-                time_label = QLabel(f"{start_str} - {end_str}")
+                # Ajuste de hora (Microsoft envía UTC)
+                h, m = map(int, start_str.split(':'))
+                h = (h + 2) % 24 # Ajuste para España (Verano UTC+2)
+                time_label = QLabel(f"{h:02d}:{m:02d}")
                 time_label.setStyleSheet("color: #bdc3c7; font-size: 14px;")
             except:
                 time_label = QLabel("Hora no disponible")
 
             card_layout.addWidget(subject)
             card_layout.addWidget(time_label)
+
+            # Detectar si es reunión online (Teams)
+            teams_url = mtg.get('onlineMeetingUrl') or (mtg.get('onlineMeeting') or {}).get('joinUrl')
+            if teams_url:
+                join_btn = QPushButton("UNIRSE A REUNIÓN")
+                join_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #464eb8;
+                        color: white;
+                        border-radius: 5px;
+                        font-weight: bold;
+                        padding: 8px;
+                        margin-top: 5px;
+                    }
+                    QPushButton:pressed {
+                        background-color: #353a8d;
+                    }
+                """)
+                join_btn.clicked.connect(lambda checked, url=teams_url: QDesktopServices.openUrl(QUrl(url)))
+                card_layout.addWidget(join_btn)
+
             self.meetings_container.addWidget(card)
 
     def refresh_apps(self):

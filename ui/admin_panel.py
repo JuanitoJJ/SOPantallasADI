@@ -1,7 +1,8 @@
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QListWidget, QListWidgetItem, QFileDialog, 
                              QLineEdit, QFormLayout, QMessageBox, QCheckBox, QTabWidget, QWidget)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QUrl
+from PyQt6.QtGui import QDesktopServices
 import os
 
 from core.icon_utils import extract_and_save_icon
@@ -110,6 +111,7 @@ class AdminPanelDialog(QDialog):
         layout.addWidget(info_label)
         
         desc_label = QLabel("Permite mostrar las reuniones de la sala en la pantalla principal.\nRequiere registrar una aplicación en Azure AD (Entra ID).")
+        desc_label.setStyleSheet("color: #555555;")
         desc_label.setWordWrap(True)
         layout.addWidget(desc_label)
         
@@ -151,7 +153,7 @@ class AdminPanelDialog(QDialog):
         auth_group.addWidget(self.link_btn)
         
         self.auth_status_label = QLabel("Estado: No vinculado o requiere re-autenticación")
-        self.auth_status_label.setStyleSheet("color: #666;")
+        self.auth_status_label.setStyleSheet("color: #444;")
         auth_group.addWidget(self.auth_status_label)
         
         layout.addLayout(auth_group)
@@ -175,12 +177,17 @@ class AdminPanelDialog(QDialog):
             self.cal_manager = CalendarManager(client_id, tenant_id)
             flow = self.cal_manager.initiate_device_flow()
             
-            # Mostrar mensaje con el código
-            msg = f"1. Ve a: {flow['verification_uri']}\n2. Introduce este código: {flow['user_code']}\n\nEste panel esperará a que completes el inicio de sesión..."
+            # Abrir navegador automáticamente
+            QDesktopServices.openUrl(QUrl(flow['verification_uri']))
             
-            # Usamos un cuadro de mensaje no bloqueante o informamos en el label
-            self.auth_status_label.setText(f"CÓDIGO: {flow['user_code']}\nEsperando confirmación...")
-            self.auth_status_label.setStyleSheet("color: #0078d7; font-weight: bold; font-size: 16px;")
+            # Mostrar mensaje con el código
+            msg = f"Se ha abierto el navegador.\n\n1. Introduce este código: {flow['user_code']}\n2. Completa el inicio de sesión.\n\nEste panel esperará a que termines..."
+            
+            # Usamos un cuadro de mensaje no bloqueante o informamos en el label con un link real
+            link_html = f'<a href="{flow["verification_uri"]}" style="color: #0078d7;">{flow["verification_uri"]}</a>'
+            self.auth_status_label.setText(f"CÓDIGO: <b>{flow['user_code']}</b><br>Si no se abrió, ve a: {link_html}")
+            self.auth_status_label.setOpenExternalLinks(True)
+            self.auth_status_label.setStyleSheet("color: #333; font-size: 15px;")
             
             # Bloquear botón mientras se autentica
             self.link_btn.setEnabled(False)

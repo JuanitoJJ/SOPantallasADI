@@ -51,10 +51,15 @@ QPushButton#AppButton:pressed {
 
 QPushButton#AdminButton {
     background-color: rgba(255, 255, 255, 0.05);
-    border: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 5px;
-    color: #555555;
+    color: #888888;
     font-size: 14px;
+}
+
+QPushButton#AdminButton:hover {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 QPushButton#EndMeetingButton {
@@ -106,9 +111,83 @@ QLabel#VolumeLabel {
     font-weight: bold;
 }
 
+QLabel#SignatureLabel {
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 12px;
+    font-style: italic;
+    margin-bottom: 5px;
+}
+
 QDialog {
     background-color: #ffffff;
     border-radius: 10px;
+}
+
+QDialog QLabel {
+    color: #333333;
+}
+
+QDialog QCheckBox {
+    color: #333333;
+    font-size: 16px;
+    spacing: 8px;
+}
+
+QDialog QCheckBox::indicator {
+    width: 22px;
+    height: 22px;
+    border: 2px solid #3498db;
+    border-radius: 4px;
+    background-color: #ffffff;
+}
+
+QDialog QCheckBox::indicator:unchecked:hover {
+    border-color: #2980b9;
+}
+
+QDialog QCheckBox::indicator:checked {
+    background-color: #3498db;
+    image: url(assets/icons/check_white.png); /* Fallback to simple colored box if icon missing */
+}
+
+QDialog QTabWidget::pane {
+    border: 1px solid #bdc3c7;
+    background: #ffffff;
+}
+
+QDialog QTabBar::tab {
+    background: #f0f0f0;
+    color: #555555;
+    padding: 10px 20px;
+    border: 1px solid #bdc3c7;
+    border-bottom: none;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    margin-right: 2px;
+}
+
+QDialog QTabBar::tab:selected {
+    background: #ffffff;
+    color: #3498db;
+    font-weight: bold;
+}
+
+QDialog QListWidget {
+    background-color: #ffffff;
+    border: 1px solid #bdc3c7;
+    border-radius: 5px;
+    color: #333333;
+    font-size: 16px;
+}
+
+QDialog QListWidget::item {
+    padding: 8px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+QDialog QListWidget::item:selected {
+    background-color: #3498db;
+    color: white;
 }
 
 QLineEdit {
@@ -116,6 +195,25 @@ QLineEdit {
     border: 1px solid #bdc3c7;
     border-radius: 5px;
     font-size: 16px;
+    color: #333333;
+    background-color: #ffffff;
+}
+
+QDialog QPushButton {
+    background-color: #f0f0f0;
+    color: #333333;
+    border: 1px solid #bdc3c7;
+    padding: 8px 15px;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+QDialog QPushButton:hover {
+    background-color: #e0e0e0;
+}
+
+QDialog QPushButton:pressed {
+    background-color: #d0d0d0;
 }
 
 QPushButton#PrimaryButton {
@@ -125,6 +223,7 @@ QPushButton#PrimaryButton {
     border-radius: 5px;
     font-size: 16px;
     font-weight: bold;
+    border: none;
 }
 
 QPushButton#PrimaryButton:pressed {

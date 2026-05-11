@@ -103,7 +103,7 @@ class RunningAppsDialog(QDialog):
         
         if not running_apps:
             no_apps = QLabel("No hay aplicaciones abiertas.")
-            no_apps.setStyleSheet("font-size: 18px; color: #888; font-weight: normal;")
+            no_apps.setStyleSheet("font-size: 18px; color: #bdc3c7; font-weight: normal;")
             no_apps.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.grid.addWidget(no_apps, 0, 0)
             return

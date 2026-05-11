@@ -70,20 +70,22 @@ class CalendarManager:
         if not token:
             return []
 
-        # Rango de tiempo: Desde el inicio de hoy hasta el final del día
+        # Rango de tiempo: Un poco más amplio para evitar problemas de zona horaria
         now = datetime.utcnow()
-        start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat() + "Z"
-        end_of_today = now.replace(hour=23, minute=59, second=59, microsecond=0).isoformat() + "Z"
+        # Pedimos desde hace 12 horas hasta dentro de 24 horas para cubrir todo el día local
+        start_range = (now - timedelta(hours=12)).isoformat() + "Z"
+        end_range = (now + timedelta(hours=24)).isoformat() + "Z"
 
         headers = {
             'Authorization': f'Bearer {token}',
-            'Prefer': 'outlook.timezone="Romance Standard Time"' # Ajustado para España/Madrid
+            'Prefer': 'outlook.timezone="UTC"' # Usamos UTC y convertimos nosotros
         }
         params = {
-            'startDateTime': start_of_today,
-            'endDateTime': end_of_today,
-            '$select': 'subject,start,end',
-            '$orderby': 'start/dateTime'
+            'startDateTime': start_range,
+            'endDateTime': end_range,
+            '$select': 'subject,start,end,location,onlineMeetingUrl,onlineMeeting',
+            '$orderby': 'start/dateTime',
+            '$top': '20'
         }
 
         try:
@@ -97,7 +99,7 @@ class CalendarManager:
                 events = response.json().get('value', [])
                 return events
             else:
-                print(f"Error Graph API: {response.text}")
+                print(f"Error Graph API: {response.status_code} - {response.text}")
                 return []
         except Exception as e:
             print(f"Error fetching meetings: {e}")
