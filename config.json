@@ -9,7 +9,7 @@
         {
             "name": "Microsoft Teams",
             "path": "%LocalAppData%\\Microsoft\\WindowsApps\\ms-teams.exe",
-            "icon": "assets/icons\\ms-teams.png",
+            "icon": "assets/icons\\teams.png",
             "category": "Reuniones"
         }
     ],
