@@ -380,6 +380,10 @@ class AdminPanelDialog(QDialog):
         self.setup_audit_tab()
         self.tabs.addTab(self.audit_tab, "  📊 Auditoría  ")
 
+        self.hdmi_tab = QWidget()
+        self.setup_hdmi_tab()
+        self.tabs.addTab(self.hdmi_tab, "  🖥️ Pantalla Externa  ")
+
         # Footer
         footer = QFrame()
         footer.setStyleSheet("QFrame { background-color: #2c3e50; padding: 12px; border-top: 1px solid #34495e; }")
@@ -726,18 +730,9 @@ class AdminPanelDialog(QDialog):
         )
         corp_layout.addLayout(make_field("Nombre Corporativo:", self.corp_name_input))
 
-        # Inactividad
-        inact_section = make_section("Comportamiento", layout, "Ajustes del protector de pantalla y notificaciones.")
+        # Comportamiento
+        inact_section = make_section("Comportamiento", layout, "Ajustes de alertas de reunión.")
         inact_layout = inact_section.layout()
-
-        self.inactivity_input = QSpinBox()
-        self.inactivity_input.setRange(1, 120)
-        self.inactivity_input.setValue(
-            int(self.config_manager.config.get("inactivity_timeout_minutes", 5))
-        )
-        self.inactivity_input.setSuffix(" min")
-        self.inactivity_input.setMinimumHeight(44)
-        inact_layout.addLayout(make_field("Timeout Inactividad:", self.inactivity_input))
 
         self.alert_minutes_input = QSpinBox()
         self.alert_minutes_input.setRange(1, 30)
@@ -797,7 +792,6 @@ class AdminPanelDialog(QDialog):
     def save_general_config(self):
         try:
             self.config_manager.config["corporate_name"] = self.corp_name_input.text()
-            self.config_manager.config["inactivity_timeout_minutes"] = int(self.inactivity_input.value())
             self.config_manager.config["alert_minutes_before_meeting"] = int(self.alert_minutes_input.value())
             self.config_manager.config["notification_sound_enabled"] = self.sound_enabled_cb.isChecked()
             self.config_manager.config["notification_sound_path"] = self.sound_path_input.text()
@@ -822,6 +816,266 @@ class AdminPanelDialog(QDialog):
         )
         if folder:
             self.wallpaper_folder_input.setText(folder.replace("/", "\\"))
+
+    # ──────────────────────────────────────────────────────────────────
+    #  TAB HDMI / PANTALLA EXTERNA
+    # ──────────────────────────────────────────────────────────────────
+    def setup_hdmi_tab(self):
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(12)
+
+        # Estado del módulo
+        status_section = make_section(
+            "Estado del módulo",
+            layout,
+            "Comprueba si se detecta algún dispositivo de captura HDMI en Windows.",
+        )
+        status_layout = status_section.layout()
+
+        self.hdmi_status_label = QLabel("")
+        self.hdmi_status_label.setWordWrap(True)
+        self.hdmi_status_label.setStyleSheet("font-size: 14px;")
+        status_layout.addWidget(self.hdmi_status_label)
+
+        refresh_btn = QPushButton("🔄 Refrescar lista de dispositivos")
+        refresh_btn.setMinimumHeight(40)
+        refresh_btn.clicked.connect(self._refresh_hdmi_devices)
+        status_layout.addWidget(refresh_btn)
+
+        # Configuración
+        config_section = make_section(
+            "Configuración de captura",
+            layout,
+            "Selecciona el dispositivo de captura HDMI y sus parámetros.",
+        )
+        config_layout = config_section.layout()
+
+        self.hdmi_enabled_cb = QCheckBox("Habilitar botón 'Compartir pantalla' en la app")
+        current_hdmi = self.config_manager.get_hdmi_input()
+        self.hdmi_enabled_cb.setChecked(current_hdmi["enabled"])
+        config_layout.addWidget(self.hdmi_enabled_cb)
+
+        # Dispositivo
+        dev_row = QHBoxLayout()
+        dev_lbl = QLabel("Dispositivo:")
+        dev_lbl.setMinimumWidth(160)
+        dev_lbl.setStyleSheet("font-size: 14px;")
+        dev_row.addWidget(dev_lbl)
+        self.hdmi_device_combo = QComboBox()
+        self.hdmi_device_combo.setMinimumHeight(40)
+        self.hdmi_device_combo.setMinimumWidth(280)
+        dev_row.addWidget(self.hdmi_device_combo, 1)
+        config_layout.addLayout(dev_row)
+
+        # Resolución
+        res_row = QHBoxLayout()
+        res_lbl = QLabel("Resolución:")
+        res_lbl.setMinimumWidth(160)
+        res_lbl.setStyleSheet("font-size: 14px;")
+        res_row.addWidget(res_lbl)
+        self.hdmi_resolution_combo = QComboBox()
+        self.hdmi_resolution_combo.setMinimumHeight(40)
+        self.hdmi_resolution_combo.addItem("1920 × 1080 (Full HD)", (1920, 1080))
+        self.hdmi_resolution_combo.addItem("1280 × 720 (HD)", (1280, 720))
+        self.hdmi_resolution_combo.addItem("640 × 480 (VGA)", (640, 480))
+        # Seleccionar la resolución actual
+        current_res = (current_hdmi["width"], current_hdmi["height"])
+        for i in range(self.hdmi_resolution_combo.count()):
+            if self.hdmi_resolution_combo.itemData(i) == current_res:
+                self.hdmi_resolution_combo.setCurrentIndex(i)
+                break
+        res_row.addWidget(self.hdmi_resolution_combo, 1)
+        config_layout.addLayout(res_row)
+
+        # FPS
+        fps_row = QHBoxLayout()
+        fps_lbl = QLabel("FPS:")
+        fps_lbl.setMinimumWidth(160)
+        fps_lbl.setStyleSheet("font-size: 14px;")
+        fps_row.addWidget(fps_lbl)
+        self.hdmi_fps_combo = QComboBox()
+        self.hdmi_fps_combo.setMinimumHeight(40)
+        self.hdmi_fps_combo.addItem("15 fps", 15)
+        self.hdmi_fps_combo.addItem("30 fps (recomendado)", 30)
+        self.hdmi_fps_combo.addItem("60 fps", 60)
+        for i in range(self.hdmi_fps_combo.count()):
+            if self.hdmi_fps_combo.itemData(i) == current_hdmi["fps"]:
+                self.hdmi_fps_combo.setCurrentIndex(i)
+                break
+        fps_row.addWidget(self.hdmi_fps_combo, 1)
+        config_layout.addLayout(fps_row)
+
+        # Botones
+        btn_row = QHBoxLayout()
+        test_btn = QPushButton("🔍 Probar 5 segundos")
+        test_btn.setMinimumHeight(44)
+        test_btn.clicked.connect(self._test_hdmi_5s)
+        btn_row.addWidget(test_btn)
+
+        save_btn = QPushButton("💾 Guardar Configuración")
+        save_btn.setObjectName("PrimaryButton")
+        save_btn.setMinimumHeight(44)
+        save_btn.clicked.connect(self._save_hdmi_config)
+        btn_row.addWidget(save_btn)
+
+        config_layout.addLayout(btn_row)
+
+        # Información de ayuda
+        help_section = make_section(
+            "Información",
+            layout,
+            "Cómo funciona:\n\n"
+            "• La pantalla interactiva expone su puerto HDMI de entrada como un "
+            "dispositivo de captura DirectShow en Windows.\n"
+            "• Al pulsar 'Compartir pantalla' en la app principal, se abre una "
+            "ventana flotante con el video en vivo del dispositivo.\n"
+            "• Para que aparezca el botón en el grid de apps, el módulo debe "
+            "estar habilitado aquí.\n"
+            "• La ventana se cierra con la X como cualquier aplicación.",
+        )
+        help_layout = help_section.layout()
+        help_label = QLabel(
+            "Si no aparece ningún dispositivo:\n"
+            "1. Verifica que el driver de captura está instalado\n"
+            "2. Comprueba en Administrador de dispositivos de Windows\n"
+            "3. Si la pantalla usa HDMI-in como monitor secundario, necesitas "
+            "una tarjeta capturadora USB externa"
+        )
+        help_label.setWordWrap(True)
+        help_label.setStyleSheet("color: #95a5a6; font-size: 13px; line-height: 1.5;")
+        help_layout.addWidget(help_label)
+
+        layout.addStretch()
+        scroll.setWidget(container)
+        self.hdmi_tab.layout = QVBoxLayout(self.hdmi_tab)
+        self.hdmi_tab.layout.setContentsMargins(0, 0, 0, 0)
+        self.hdmi_tab.layout.addWidget(scroll)
+
+        # Cargar dispositivos al iniciar
+        self._refresh_hdmi_devices()
+
+    def _refresh_hdmi_devices(self):
+        """Enumera dispositivos y actualiza combo + label de estado."""
+        try:
+            from core.hdmi_capture import HDMICaptureManager
+
+            if not HDMICaptureManager.is_available():
+                self.hdmi_status_label.setText("✕ OpenCV no está instalado")
+                self.hdmi_status_label.setStyleSheet(
+                    "color: #e74c3c; font-size: 14px; font-weight: bold;"
+                )
+                self.hdmi_device_combo.clear()
+                return
+
+            devices = HDMICaptureManager.list_devices()
+            current_hdmi = self.config_manager.get_hdmi_input()
+            self.hdmi_device_combo.clear()
+
+            if not devices:
+                self.hdmi_status_label.setText(
+                    "🟡 No se detectaron dispositivos de captura.\n"
+                    "Verifica que el driver esté instalado y pulsa 'Refrescar'."
+                )
+                self.hdmi_status_label.setStyleSheet(
+                    "color: #f39c12; font-size: 14px; font-weight: bold;"
+                )
+            else:
+                for dev in devices:
+                    self.hdmi_device_combo.addItem(dev["name"], dev["index"])
+                # Seleccionar el actual
+                for i in range(self.hdmi_device_combo.count()):
+                    if self.hdmi_device_combo.itemData(i) == current_hdmi["device_index"]:
+                        self.hdmi_device_combo.setCurrentIndex(i)
+                        break
+
+                self.hdmi_status_label.setText(
+                    f"🟢 {len(devices)} dispositivo(s) detectado(s)"
+                )
+                self.hdmi_status_label.setStyleSheet(
+                    "color: #27ae60; font-size: 14px; font-weight: bold;"
+                )
+
+        except Exception as exc:
+            logger.error("Error refrescando dispositivos HDMI: %s", exc)
+            self.hdmi_status_label.setText(f"✕ Error: {exc}")
+            self.hdmi_status_label.setStyleSheet(
+                "color: #e74c3c; font-size: 14px;"
+            )
+
+    def _save_hdmi_config(self):
+        try:
+            device_index = self.hdmi_device_combo.currentData()
+            if device_index is None:
+                QMessageBox.warning(
+                    self, "Sin dispositivo",
+                    "No hay ningún dispositivo seleccionado.\n"
+                    "Pulsa 'Refrescar lista de dispositivos' primero."
+                )
+                return
+
+            w, h = self.hdmi_resolution_combo.currentData()
+            fps = self.hdmi_fps_combo.currentData()
+
+            self.config_manager.set_hdmi_input(
+                enabled=self.hdmi_enabled_cb.isChecked(),
+                device_index=int(device_index),
+                width=int(w),
+                height=int(h),
+                fps=int(fps),
+            )
+            QMessageBox.information(
+                self, "Configuración guardada",
+                "La configuración de 'Compartir pantalla' se ha guardado.\n"
+                "El botón aparecerá en el grid de apps al regresar a la pantalla principal."
+            )
+        except Exception as exc:
+            logger.error("Error guardando config HDMI: %s", exc)
+            QMessageBox.warning(self, "Error", f"No se pudo guardar: {exc}")
+
+    def _test_hdmi_5s(self):
+        """Abre una ventana de prueba con el viewer durante 5 segundos."""
+        from ui.hdmi_viewer_window import HDMIViewerWindow
+        from PyQt6.QtCore import QTimer
+
+        if not self.hdmi_device_combo.count():
+            QMessageBox.warning(
+                self, "Sin dispositivo",
+                "No hay dispositivos detectados para probar."
+            )
+            return
+
+        device_index = self.hdmi_device_combo.currentData()
+        w, h = self.hdmi_resolution_combo.currentData()
+        fps = self.hdmi_fps_combo.currentData()
+
+        try:
+            test_window = HDMIViewerWindow(
+                device_index=int(device_index),
+                width=int(w),
+                height=int(h),
+                fps=int(fps),
+                parent=None,
+            )
+            test_window.setWindowTitle("PRUEBA — Compartir Pantalla (5s)")
+            test_window.show()
+
+            def close_test():
+                if test_window is not None:
+                    try:
+                        test_window.force_stop()
+                    except Exception:
+                        pass
+
+            QTimer.singleShot(5000, close_test)
+        except Exception as exc:
+            logger.error("Error en test HDMI: %s", exc)
+            QMessageBox.warning(self, "Error", f"No se pudo iniciar prueba: {exc}")
 
     # ──────────────────────────────────────────────────────────────────
     #  TAB CALENDARIO M365

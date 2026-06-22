@@ -2,10 +2,11 @@ import os
 import sys
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QGridLayout,
                              QPushButton, QLabel, QFrame, QSpacerItem, QSizePolicy,
-                             QSlider, QHBoxLayout, QMessageBox, QGraphicsOpacityEffect)
+                             QSlider, QHBoxLayout, QMessageBox, QGraphicsOpacityEffect,
+                             QGraphicsDropShadowEffect)
 
 from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QUrl, QThread, pyqtSignal
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtGui import QDesktopServices, QColor, QImage
 from core.config_manager import ConfigManager
 from core.app_launcher import launch_application, close_all_launched_apps
 from core.volume_manager import set_system_volume, get_current_volume
@@ -15,13 +16,13 @@ from core import audit
 from ui.admin_panel import AdminPanelDialog
 from ui.running_apps_dialog import RunningAppsDialog
 from ui.touch_dialogs import TouchConfirmDialog, TouchAdminLoginDialog
-from ui.screensaver import InactivityManager
 from ui.widgets import apply_text_outline
 from ui.widgets.clock_widget import ClockWidget
 from ui.widgets.volume_control import VolumeControl
 from ui.widgets.app_grid import AppGrid
 from ui.widgets.toast_notification import ToastContainer
 from ui.widgets.notification_center import NotificationBell
+from ui.hdmi_viewer_window import HDMIViewerWindow
 from core.calendar_manager import CalendarManager
 from core.path_utils import get_resource_path
 from datetime import datetime, timezone
@@ -89,6 +90,8 @@ class MainWindow(QMainWindow):
 
         self._alerted_meetings: set = set()
         self._ongoing_announced: set = set()
+        self._hdmi_viewer: HDMIViewerWindow = None
+        self.cal_title = None
 
         self.init_ui()
 
@@ -112,10 +115,6 @@ class MainWindow(QMainWindow):
             self.check_meeting_alerts()
 
         corporate_name = self.config_manager.config.get("corporate_name", "SISTEMA CORPORATIVO")
-        inactivity_timeout = self.config_manager.config.get("inactivity_timeout_minutes", 5)
-        self.inactivity = InactivityManager(self, corporate_name, inactivity_timeout)
-        # Conectar evento de activación del screensaver
-        self.inactivity._screensaver.destroyed.connect(lambda: audit.log_screensaver_dismissed())
 
         self.wallpaper_index = 0
         self.wallpaper_timer = QTimer(self)
@@ -238,18 +237,63 @@ class MainWindow(QMainWindow):
             
         file_path = self.wallpaper_files[self.wallpaper_index]
         # Usar barras normales para QSS en Windows
-        file_path = file_path.replace("\\", "/")
+        qss_path = file_path.replace("\\", "/")
         
         self.central_widget.setStyleSheet(f"""
             #MainLauncher {{
-                background-image: url("{file_path}");
+                background-image: url("{qss_path}");
                 background-position: center;
                 background-repeat: no-repeat;
                 background-attachment: fixed;
             }}
         """)
         
+        # Calcular brillo de la imagen
+        is_light_bg = False
+        try:
+            image = QImage(file_path)
+            if not image.isNull():
+                scaled = image.scaled(1, 1, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.FastTransformation)
+                color = QColor(scaled.pixel(0, 0))
+                brightness = 0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue()
+                is_light_bg = (brightness > 130)
+        except Exception as exc:
+            logger.warning("Error calculando brillo del wallpaper: %s", exc)
+
+        # Ajustar contraste del texto de los títulos
+        self.adjust_text_contrast(is_light_bg)
+        
         self.wallpaper_index = (self.wallpaper_index + 1) % len(self.wallpaper_files)
+
+    def adjust_text_contrast(self, is_light_bg: bool):
+        text_color = "#1a1a1a" if is_light_bg else "#ffffff"
+        date_color = "#444444" if is_light_bg else "#bdc3c7"
+        shadow_color = "#ffffff" if is_light_bg else "#000000"
+        cal_title_color = "#1b4f72" if is_light_bg else "#3498db"
+        signature_color = "#444444" if is_light_bg else "#7f8c8d"
+
+        def apply_style(label, color, shadow_col):
+            if label is None:
+                return
+            label.setStyleSheet(f"color: {color};")
+            effect = label.graphicsEffect()
+            if isinstance(effect, QGraphicsDropShadowEffect):
+                effect.setColor(QColor(shadow_col))
+                effect.setBlurRadius(4 if is_light_bg else 2)
+
+        if hasattr(self, 'header'):
+            apply_style(self.header, text_color, shadow_color)
+        if hasattr(self, 'clock_widget'):
+            apply_style(self.clock_widget.clock_label, text_color, shadow_color)
+            apply_style(self.clock_widget.date_label, date_color, shadow_color)
+        if hasattr(self, 'signature'):
+            apply_style(self.signature, signature_color, shadow_color)
+        if hasattr(self, 'cal_title') and self.cal_title is not None:
+            self.cal_title.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {cal_title_color}; margin-top: 20px;")
+            effect = self.cal_title.graphicsEffect()
+            if isinstance(effect, QGraphicsDropShadowEffect):
+                effect.setColor(QColor(shadow_color))
+                effect.setBlurRadius(4 if is_light_bg else 2)
 
     def init_ui(self):
         # Configuración de ventana
@@ -325,6 +369,19 @@ class MainWindow(QMainWindow):
 
         controls_layout.addStretch()
 
+        # Botón "Compartir pantalla" (HDMI Input)
+        # Separado del grid de apps para que las apps del sistema y esta
+        # función especial estén visual y conceptualmente diferenciadas.
+        self.share_screen_btn = QPushButton("🖥  Compartir pantalla")
+        self.share_screen_btn.setObjectName("ShareScreenButton")
+        self.share_screen_btn.setMinimumHeight(60)
+        self.share_screen_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.share_screen_btn.clicked.connect(self._open_hdmi_viewer)
+        self.share_screen_btn.setVisible(self.config_manager.is_hdmi_enabled())
+        controls_layout.addWidget(self.share_screen_btn)
+
+        controls_layout.addSpacing(15)
+
         self.running_apps_btn = QPushButton("Aplicaciones Abiertas")
         self.running_apps_btn.setObjectName("RunningAppsButton")
         self.running_apps_btn.setMinimumHeight(60)
@@ -358,6 +415,7 @@ class MainWindow(QMainWindow):
 
         self.signature = QLabel("Programado por Juan Jarque")
         self.signature.setObjectName("SignatureLabel")
+        apply_text_outline(self.signature)
         footer_layout.addWidget(self.signature)
 
         footer_layout.addStretch()
@@ -374,10 +432,11 @@ class MainWindow(QMainWindow):
         self.right_panel_widget = QWidget()
         right_panel = QVBoxLayout(self.right_panel_widget)
 
-        cal_title = QLabel("REUNIONES DE HOY")
-        cal_title.setObjectName("CalendarTitle")
-        cal_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #3498db; margin-top: 20px;")
-        right_panel.addWidget(cal_title)
+        self.cal_title = QLabel("REUNIONES DE HOY")
+        self.cal_title.setObjectName("CalendarTitle")
+        self.cal_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #3498db; margin-top: 20px;")
+        apply_text_outline(self.cal_title)
+        right_panel.addWidget(self.cal_title)
 
         self.meetings_container = QVBoxLayout()
         right_panel.addLayout(self.meetings_container)
@@ -564,8 +623,17 @@ class MainWindow(QMainWindow):
                 widget.deleteLater()
 
         apps = self.config_manager.get_apps()
-        self.app_grid = AppGrid(apps, parent=self.apps_container, on_launch=self._on_launch_error)
+        self.app_grid = AppGrid(
+            apps,
+            parent=self.apps_container,
+            on_launch=self._on_launch_error,
+        )
         self.grid_layout.addWidget(self.app_grid, 0, 0)
+
+        # Mantener la visibilidad del botón "Compartir pantalla" sincronizada
+        # con la configuración del admin.
+        if hasattr(self, 'share_screen_btn'):
+            self.share_screen_btn.setVisible(self.config_manager.is_hdmi_enabled())
 
     def _on_launch_error(self, error: str, app_info: dict):
         msg = QMessageBox(self)
@@ -588,6 +656,7 @@ class MainWindow(QMainWindow):
         )
         if dlg.exec():
             close_all_launched_apps()
+            self._close_hdmi_viewer()
             info = TouchConfirmDialog(
                 title="Reunión finalizada",
                 message="Se han cerrado las aplicaciones.\nEl sistema está listo para la próxima reunión.",
@@ -601,6 +670,52 @@ class MainWindow(QMainWindow):
                 if btn.text() == "":
                     btn.hide()
             info.exec()
+
+    def _open_hdmi_viewer(self):
+        """Abre la ventana flotante del viewer HDMI."""
+        if not self.config_manager.is_hdmi_enabled():
+            notification_manager.notify(
+                level=NotificationLevel.WARNING,
+                title="HDMI no configurado",
+                message="Activa 'Compartir pantalla' en el panel Admin.",
+            )
+            return
+
+        if self._hdmi_viewer is not None and self._hdmi_viewer.isVisible():
+            self._hdmi_viewer.activateWindow()
+            self._hdmi_viewer.raise_()
+            return
+
+        cfg = self.config_manager.get_hdmi_input()
+        try:
+            self._hdmi_viewer = HDMIViewerWindow(
+                device_index=cfg["device_index"],
+                width=cfg["width"],
+                height=cfg["height"],
+                fps=cfg["fps"],
+                parent=None,
+            )
+            self._hdmi_viewer.closed.connect(self._on_hdmi_viewer_closed)
+            self._hdmi_viewer.show()
+        except Exception as exc:
+            logger.error("Error abriendo viewer HDMI: %s", exc, exc_info=True)
+            notification_manager.notify(
+                level=NotificationLevel.ERROR,
+                title="Error al abrir Compartir pantalla",
+                message=str(exc),
+            )
+
+    def _on_hdmi_viewer_closed(self):
+        self._hdmi_viewer = None
+
+    def _close_hdmi_viewer(self):
+        """Cierra el viewer HDMI si está abierto (usado en Finalizar Reunión)."""
+        if self._hdmi_viewer is not None:
+            try:
+                self._hdmi_viewer.force_stop()
+            except Exception:
+                pass
+            self._hdmi_viewer = None
 
     def open_admin_panel(self):
         login = TouchAdminLoginDialog(self.config_manager.get_admin_password(), self)
@@ -638,12 +753,6 @@ class MainWindow(QMainWindow):
     def open_running_apps_panel(self):
         dialog = RunningAppsDialog(self)
         dialog.exec()
-
-    def mousePressEvent(self, a0):  # type: ignore[override]
-        """Cualquier toque reinicia el contador de inactividad."""
-        if hasattr(self, 'inactivity'):
-            self.inactivity.reset()
-        super().mousePressEvent(a0)
 
     def keyPressEvent(self, a0):  # type: ignore[override]
         if a0 is not None and a0.key() == Qt.Key.Key_Escape:
