@@ -1,0 +1,256 @@
+/* ===================================================================
+   TEMA: OSCURO
+   Fondo oscuro (#1a1a1a) con acentos en azul corporativo (#3498db)
+   =================================================================== */
+
+QMainWindow {
+    background-color: #1a1a1a;
+}
+
+QWidget#MainLauncher {
+    background-color: #1a1a1a;
+}
+
+QLabel#HeaderLabel {
+    font-size: 24px;
+    font-weight: 300;
+    color: #ecf0f1;
+    margin-top: 10px;
+}
+
+QLabel#ClockLabel {
+    font-size: 120px;
+    font-weight: bold;
+    color: #ffffff;
+    margin: 0px;
+    padding: 0px;
+}
+
+QLabel#DateLabel {
+    font-size: 28px;
+    color: #bdc3c7;
+    margin-bottom: 20px;
+}
+
+QPushButton#AppButton {
+    background-color: #2c3e50;
+    border: 2px solid #34495e;
+    border-radius: 25px;
+    font-size: 20px;
+    font-weight: 600;
+    color: #ffffff;
+    padding: 25px;
+    min-width: 220px;
+    min-height: 220px;
+    text-align: center;
+}
+
+QPushButton#AppButton:hover {
+    background-color: #34495e;
+    border-color: #4a6278;
+}
+
+QPushButton#AppButton:pressed {
+    background-color: #1a6ea8;
+    border: 3px solid #3498db;
+    color: #ffffff;
+}
+
+QPushButton#AppButton[flash="true"] {
+    background-color: #3498db;
+    border: 3px solid #85c1e9;
+}
+
+QPushButton#AdminButton {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #aaaaaa;
+    font-size: 14px;
+    min-width: 80px;
+    min-height: 44px;
+    padding: 0px 12px;
+}
+
+QPushButton#AdminButton:hover {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+QPushButton#AdminButton:pressed {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+}
+
+QPushButton#EndMeetingButton {
+    background-color: #e74c3c;
+    color: white;
+    border-radius: 15px;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 15px 30px;
+}
+
+QPushButton#EndMeetingButton:pressed {
+    background-color: #c0392b;
+}
+
+QPushButton#RunningAppsButton {
+    background-color: #3498db;
+    color: white;
+    border-radius: 15px;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 15px 30px;
+}
+
+QPushButton#RunningAppsButton:pressed {
+    background-color: #2980b9;
+}
+
+QSlider::groove:horizontal {
+    border: 1px solid #34495e;
+    height: 16px;
+    background: #2c3e50;
+    margin: 2px 0;
+    border-radius: 8px;
+}
+
+QSlider::sub-page:horizontal {
+    background: #3498db;
+    border-radius: 8px;
+}
+
+QSlider::handle:horizontal {
+    background: #3498db;
+    border: 2px solid #2980b9;
+    width: 44px;
+    height: 44px;
+    margin: -16px 0;
+    border-radius: 22px;
+}
+
+QLabel#VolumeLabel {
+    color: #bdc3c7;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+QLabel#SignatureLabel {
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 12px;
+    font-style: italic;
+    margin-bottom: 5px;
+}
+
+QDialog {
+    background-color: #ffffff;
+    border-radius: 10px;
+}
+
+QDialog QLabel {
+    color: #333333;
+}
+
+QDialog QCheckBox {
+    color: #333333;
+    font-size: 16px;
+    spacing: 8px;
+}
+
+QDialog QCheckBox::indicator {
+    width: 22px;
+    height: 22px;
+    border: 2px solid #3498db;
+    border-radius: 4px;
+    background-color: #ffffff;
+}
+
+QDialog QCheckBox::indicator:unchecked:hover {
+    border-color: #2980b9;
+}
+
+QDialog QCheckBox::indicator:checked {
+    background-color: #3498db;
+    image: url(assets/icons/check_white.png);
+}
+
+QDialog QTabWidget::pane {
+    border: 1px solid #bdc3c7;
+    background: #ffffff;
+}
+
+QDialog QTabBar::tab {
+    background: #f0f0f0;
+    color: #555555;
+    padding: 10px 20px;
+    border: 1px solid #bdc3c7;
+    border-bottom: none;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    margin-right: 2px;
+}
+
+QDialog QTabBar::tab:selected {
+    background: #ffffff;
+    color: #3498db;
+    font-weight: bold;
+}
+
+QDialog QListWidget {
+    background-color: #ffffff;
+    border: 1px solid #bdc3c7;
+    border-radius: 5px;
+    color: #333333;
+    font-size: 16px;
+}
+
+QDialog QListWidget::item {
+    padding: 8px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+QDialog QListWidget::item:selected {
+    background-color: #3498db;
+    color: white;
+}
+
+QLineEdit {
+    padding: 10px;
+    border: 2px solid #000000;
+    border-radius: 5px;
+    font-size: 16px;
+    color: #333333;
+    background-color: #ffffff;
+}
+
+QDialog QPushButton {
+    background-color: #f0f0f0;
+    color: #333333;
+    border: 2px solid #000000;
+    padding: 8px 15px;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+QDialog QPushButton:hover {
+    background-color: #e0e0e0;
+}
+
+QDialog QPushButton:pressed {
+    background-color: #d0d0d0;
+}
+
+QPushButton#PrimaryButton {
+    background-color: #3498db;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-size: 16px;
+    font-weight: bold;
+    border: none;
+}
+
+QPushButton#PrimaryButton:pressed {
+    background-color: #2980b9;
+}

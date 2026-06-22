@@ -1,7 +1,40 @@
-.env
+# Entorno
 __pycache__/
 *.pyc
-token_cache.bin
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.venv/
+venv/
+env/
+
+# IDEs
+.vs/
+.vscode/
+.idea/
+*.swp
+.cursor/
+.codegraph/
+.claude/
+
+# Builds
 dist/
 build/
 *.spec
+*.exe
+
+# Datos de usuario
+.env
+config.json
+token_cache.bin
+
+# Datos generados en runtime
+logs/
+cache/
+notification_history.json
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.watchdog_alive

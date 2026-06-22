@@ -1,44 +1,255 @@
 import os
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QGridLayout, 
+import sys
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QGridLayout,
                              QPushButton, QLabel, QFrame, QSpacerItem, QSizePolicy,
                              QSlider, QHBoxLayout, QMessageBox, QGraphicsOpacityEffect)
-from PyQt6.QtCore import Qt, QSize, QTimer, QDateTime, QPropertyAnimation, QEasingCurve, QUrl
-from PyQt6.QtGui import QIcon, QColor, QDesktopServices
+
+from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QUrl, QThread, pyqtSignal
+from PyQt6.QtGui import QDesktopServices
 from core.config_manager import ConfigManager
 from core.app_launcher import launch_application, close_all_launched_apps
 from core.volume_manager import set_system_volume, get_current_volume
-from ui.admin_login import AdminLoginDialog
+from core.logger import get_logger
+from core.notification_manager import notification_manager, NotificationLevel
+from core import audit
 from ui.admin_panel import AdminPanelDialog
 from ui.running_apps_dialog import RunningAppsDialog
+from ui.touch_dialogs import TouchConfirmDialog, TouchAdminLoginDialog
+from ui.screensaver import InactivityManager
+from ui.widgets import apply_text_outline
+from ui.widgets.clock_widget import ClockWidget
+from ui.widgets.volume_control import VolumeControl
+from ui.widgets.app_grid import AppGrid
+from ui.widgets.toast_notification import ToastContainer
+from ui.widgets.notification_center import NotificationBell
 from core.calendar_manager import CalendarManager
-from datetime import datetime
+from core.path_utils import get_resource_path
+from datetime import datetime, timezone
+
+
+logger = get_logger("ui.main_window")
+
+
+class CalendarFetchWorker(QThread):
+    """Worker que obtiene las reuniones del calendario en un hilo de fondo."""
+    meetings_ready = pyqtSignal(list, str)
+
+    def __init__(self, calendar_manager):
+        super().__init__()
+        self.calendar_manager = calendar_manager
+
+    def run(self):
+        meetings, status = self.calendar_manager.get_upcoming_meetings()
+        self.meetings_ready.emit(meetings, status)
+
+
+class MeetingAlertWorker(QThread):
+    """Worker que detecta reuniones próximas para alertar."""
+    meeting_alert = pyqtSignal(dict)
+    meeting_started = pyqtSignal(dict)
+
+    def __init__(self, calendar_manager, alert_minutes: int = 5):
+        super().__init__()
+        self.calendar_manager = calendar_manager
+        self.alert_minutes = alert_minutes
+        self._stopped = False
+
+    def stop(self):
+        self._stopped = True
+
+    def run(self):
+        if self._stopped:
+            return
+        try:
+            alerts = self.calendar_manager.get_upcoming_alerts(self.alert_minutes)
+            for alert in alerts:
+                if not self._stopped:
+                    self.meeting_alert.emit(alert)
+            ongoing = self.calendar_manager.get_ongoing_meetings()
+            for mtg in ongoing:
+                if not self._stopped:
+                    self.meeting_started.emit(mtg)
+        except Exception as exc:
+            logger.warning("Error en worker de alertas: %s", exc)
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.config_manager = ConfigManager()
-        
-        # Inicializar Gestor de Calendario si está habilitado
+
         self.calendar_manager = None
         if self.config_manager.config.get("calendar_enabled"):
             client_id = self.config_manager.get_client_id()
             tenant_id = self.config_manager.get_tenant_id()
+            room_email = self.config_manager.get_room_email()
+            client_secret = self.config_manager.get_client_secret()
             if client_id:
-                self.calendar_manager = CalendarManager(client_id, tenant_id)
-        
+                self.calendar_manager = CalendarManager(client_id, tenant_id, room_email, client_secret)
+
+        self._alerted_meetings: set = set()
+        self._ongoing_announced: set = set()
+
         self.init_ui()
-        
-        # Timer para actualizar el reloj cada segundo
+
+        self.toast_container = ToastContainer(self)
+        self.toast_container.setGeometry(0, 0, self.width(), self.height())
+
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_time)
         self.timer.start(1000)
-        
-        # Timer para actualizar el calendario cada 1 minuto
+
         if self.calendar_manager:
             self.cal_timer = QTimer(self)
             self.cal_timer.timeout.connect(self.update_calendar)
-            self.cal_timer.start(1 * 60 * 1000) # 1 minuto
-            self.update_calendar() # Carga inicial
+            self.cal_timer.start(1 * 60 * 1000)
+            self.update_calendar()
+
+            alert_settings = self.config_manager.get_notification_settings()
+            self.alert_timer = QTimer(self)
+            self.alert_timer.timeout.connect(self.check_meeting_alerts)
+            self.alert_timer.start(60 * 1000)
+            self.check_meeting_alerts()
+
+        corporate_name = self.config_manager.config.get("corporate_name", "SISTEMA CORPORATIVO")
+        inactivity_timeout = self.config_manager.config.get("inactivity_timeout_minutes", 5)
+        self.inactivity = InactivityManager(self, corporate_name, inactivity_timeout)
+        # Conectar evento de activación del screensaver
+        self.inactivity._screensaver.destroyed.connect(lambda: audit.log_screensaver_dismissed())
+
+        self.wallpaper_index = 0
+        self.wallpaper_timer = QTimer(self)
+        self.wallpaper_timer.timeout.connect(self.next_wallpaper)
+        self.setup_wallpaper_carousel()
+
+        notification_manager.add_listener(self._on_new_notification)
+
+        # Log de inicio de sesión
+        audit.log_session_start(
+            f"corporate_name={corporate_name}, theme={self.config_manager.get_theme()}"
+        )
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, 'toast_container'):
+            self.toast_container.setGeometry(0, 0, self.width(), self.height())
+            self.toast_container._relayout()
+
+    def _on_new_notification(self, notification):
+        if notification is not None:
+            audit.log_notification(
+                notification.level,
+                notification.title,
+                notification.message,
+            )
+
+    def check_meeting_alerts(self):
+        if not self.calendar_manager:
+            return
+        if hasattr(self, '_alert_worker') and self._alert_worker.isRunning():
+            return
+        alert_settings = self.config_manager.get_notification_settings()
+        minutes = alert_settings.get("alert_minutes_before", 5)
+        self._alert_worker = MeetingAlertWorker(self.calendar_manager, minutes)
+        self._alert_worker.meeting_alert.connect(self._on_meeting_alert)
+        self._alert_worker.meeting_started.connect(self._on_meeting_started)
+        self._alert_worker.start()
+
+    def _on_meeting_alert(self, alert: dict):
+        mtg_id = alert.get("id", "")
+        if mtg_id in self._alerted_meetings:
+            return
+        self._alerted_meetings.add(mtg_id)
+        subject = alert.get("subject", "Sin título")
+        minutes = alert.get("minutes_until", 0)
+        join_url = alert.get("join_url", "")
+        time_str = alert.get("start_dt").strftime("%H:%M") if alert.get("start_dt") else ""
+        message = f"Comienza a las {time_str} ({minutes} min)"
+        action_cb = None
+        action_label = ""
+        if join_url:
+            action_cb = lambda url=join_url, i=mtg_id, s=subject, t=alert.get("start_dt"): self._join_meeting(url, i, s, t)
+            action_label = "Unirse"
+        notification_manager.notify(
+            level=NotificationLevel.MEETING,
+            title=f"📅 {subject}",
+            message=message,
+            action_callback=action_cb,
+            action_label=action_label,
+        )
+        audit.log_meeting_alert(
+            mtg_id, subject,
+            start_time=time_str,
+            minutes_until=minutes,
+        )
+
+    def _on_meeting_started(self, mtg: dict):
+        mtg_id = mtg.get("id", "")
+        if mtg_id in self._ongoing_announced:
+            return
+        self._ongoing_announced.add(mtg_id)
+        subject = mtg.get("subject", "Sin título")
+        join_url = mtg.get("join_url", "")
+        action_cb = None
+        action_label = ""
+        if join_url:
+            action_cb = lambda url=join_url, i=mtg_id, s=subject, t=mtg.get("start_dt"): self._join_meeting(url, i, s, t)
+            action_label = "Unirse ahora"
+        notification_manager.notify(
+            level=NotificationLevel.WARNING,
+            title=f"🔔 Reunión en curso: {subject}",
+            message="La reunión ha comenzado",
+            action_callback=action_cb,
+            action_label=action_label,
+        )
+        time_str = mtg.get("start_dt").strftime("%H:%M") if mtg.get("start_dt") else None
+        audit.log_meeting_started(mtg_id, subject, start_time=time_str)
+
+    def _join_meeting(self, url: str, event_id: str = "", subject: str = "", start_time=None):
+        """Une al usuario a una reunión y registra el evento."""
+        QDesktopServices.openUrl(QUrl(url))
+        time_str = start_time.strftime("%H:%M") if start_time else None
+        audit.log_meeting_joined(event_id, subject, start_time=time_str)
+
+    def setup_wallpaper_carousel(self):
+        settings = self.config_manager.get_wallpaper_settings()
+        folder = settings["folder"]
+        interval = settings["interval"]
+
+        if not os.path.exists(folder):
+            os.makedirs(folder, exist_ok=True)
+        
+        self.wallpaper_files = [
+            os.path.join(folder, f) for f in os.listdir(folder)
+            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.webp'))
+        ]
+        
+        if self.wallpaper_files:
+            self.next_wallpaper()
+            if len(self.wallpaper_files) > 1:
+                self.wallpaper_timer.start(interval * 1000)
+        else:
+            # Fondo por defecto si no hay imágenes
+            self.central_widget.setStyleSheet("#MainLauncher { background-color: #1a1a1a; }")
+
+    def next_wallpaper(self):
+        if not self.wallpaper_files:
+            return
+            
+        file_path = self.wallpaper_files[self.wallpaper_index]
+        # Usar barras normales para QSS en Windows
+        file_path = file_path.replace("\\", "/")
+        
+        self.central_widget.setStyleSheet(f"""
+            #MainLauncher {{
+                background-image: url("{file_path}");
+                background-position: center;
+                background-repeat: no-repeat;
+                background-attachment: fixed;
+            }}
+        """)
+        
+        self.wallpaper_index = (self.wallpaper_index + 1) % len(self.wallpaper_files)
 
     def init_ui(self):
         # Configuración de ventana
@@ -54,7 +265,7 @@ class MainWindow(QMainWindow):
         # Efecto de Opacidad para Animación de Entrada
         self.opacity_effect = QGraphicsOpacityEffect(self.central_widget)
         self.central_widget.setGraphicsEffect(self.opacity_effect)
-        
+
         self.animation = QPropertyAnimation(self.opacity_effect, b"opacity")
         self.animation.setDuration(800)
         self.animation.setStartValue(0.0)
@@ -72,30 +283,28 @@ class MainWindow(QMainWindow):
         left_panel = QVBoxLayout()
         self.content_layout.addLayout(left_panel, 3)
 
-        # Cabecera / Info de Sala
+        # Cabecera con nombre + campana de notificaciones
+        header_row = QHBoxLayout()
         self.header = QLabel(self.config_manager.config.get("corporate_name", "SALA DE REUNIONES"))
         self.header.setObjectName("HeaderLabel")
         self.header.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        left_panel.addWidget(self.header)
+        apply_text_outline(self.header)
+        header_row.addWidget(self.header, 1)
 
-        # Widget de Reloj
-        self.clock_label = QLabel()
-        self.clock_label.setObjectName("ClockLabel")
-        self.clock_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        left_panel.addWidget(self.clock_label)
+        self.notification_bell = NotificationBell(self)
+        header_row.addWidget(self.notification_bell, 0, Qt.AlignmentFlag.AlignRight)
 
-        # Widget de Fecha
-        self.date_label = QLabel()
-        self.date_label.setObjectName("DateLabel")
-        self.date_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        left_panel.addWidget(self.date_label)
-        
-        self.update_time() # Inicializar hora
+        left_panel.addLayout(header_row)
+
+        # Widget de Reloj + Fecha (extraído)
+        self.clock_widget = ClockWidget(self, show_date=True)
+        self.clock_widget.update()
+        left_panel.addWidget(self.clock_widget)
 
         # Espaciador
         left_panel.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
 
-        # Contenedor de Apps (Grid)
+        # Contenedor de Apps (Grid extraído)
         self.apps_container = QWidget()
         self.grid_layout = QGridLayout(self.apps_container)
         self.grid_layout.setSpacing(30)
@@ -108,21 +317,12 @@ class MainWindow(QMainWindow):
 
         # --- SECCIÓN DE CONTROLES INFERIORES ---
         controls_layout = QHBoxLayout()
-        
-        # Control de Volumen
-        volume_container = QVBoxLayout()
-        vol_label = QLabel("VOLUMEN")
-        vol_label.setObjectName("VolumeLabel")
-        vol_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.volume_slider = QSlider(Qt.Orientation.Horizontal)
-        self.volume_slider.setRange(0, 100)
-        self.volume_slider.setValue(get_current_volume())
-        self.volume_slider.setFixedWidth(250)
-        self.volume_slider.valueChanged.connect(set_system_volume)
-        volume_container.addWidget(vol_label)
-        volume_container.addWidget(self.volume_slider)
-        controls_layout.addLayout(volume_container)
-        
+
+        # Control de Volumen (extraído)
+        self.volume_control = VolumeControl(self)
+        controls_layout.addWidget(self.volume_control)
+        self.volume_slider = self.volume_control.slider
+
         controls_layout.addStretch()
 
         self.running_apps_btn = QPushButton("Aplicaciones Abiertas")
@@ -130,7 +330,7 @@ class MainWindow(QMainWindow):
         self.running_apps_btn.setMinimumHeight(60)
         self.running_apps_btn.clicked.connect(self.open_running_apps_panel)
         controls_layout.addWidget(self.running_apps_btn)
-        
+
         controls_layout.addSpacing(15)
 
         self.end_meeting_btn = QPushButton("Finalizar Reunión")
@@ -142,74 +342,130 @@ class MainWindow(QMainWindow):
         left_panel.addLayout(controls_layout)
 
         # --- LADO DERECHO: CALENDARIO ---
+        # El panel derecho se construye en _setup_calendar_panel() para poder
+        # llamarlo sin recrear toda la UI cuando se activa el calendario.
+        self.right_panel_widget = None
         if self.calendar_manager:
-            right_panel = QVBoxLayout()
-            self.content_layout.addLayout(right_panel, 1)
-            
-            cal_title = QLabel("REUNIONES DE HOY")
-            cal_title.setObjectName("CalendarTitle")
-            cal_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #3498db; margin-top: 20px;")
-            right_panel.addWidget(cal_title)
-            
-            self.meetings_container = QVBoxLayout()
-            right_panel.addLayout(self.meetings_container)
-            right_panel.addStretch()
+            self._setup_calendar_panel()
 
-        # Botón Admin (esquina inferior derecha)
+        # Botón Admin (esquina inferior derecha) — tamaño mínimo táctil 80×44px
         self.admin_btn = QPushButton("Admin")
         self.admin_btn.setObjectName("AdminButton")
-        self.admin_btn.setFixedSize(60, 30)
         self.admin_btn.clicked.connect(self.open_admin_panel)
-        
+
         # Ponemos el admin en el layout izquierdo al fondo
         footer_layout = QHBoxLayout()
-        
+
         self.signature = QLabel("Programado por Juan Jarque")
         self.signature.setObjectName("SignatureLabel")
         footer_layout.addWidget(self.signature)
-        
+
         footer_layout.addStretch()
         footer_layout.addWidget(self.admin_btn)
         left_panel.addLayout(footer_layout)
 
+    def _setup_calendar_panel(self):
+        """Construye o reconstruye el panel derecho del calendario."""
+        # Si ya existía un panel anterior, eliminarlo del layout
+        if self.right_panel_widget is not None:
+            self.content_layout.removeWidget(self.right_panel_widget)
+            self.right_panel_widget.deleteLater()
+
+        self.right_panel_widget = QWidget()
+        right_panel = QVBoxLayout(self.right_panel_widget)
+
+        cal_title = QLabel("REUNIONES DE HOY")
+        cal_title.setObjectName("CalendarTitle")
+        cal_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #3498db; margin-top: 20px;")
+        right_panel.addWidget(cal_title)
+
+        self.meetings_container = QVBoxLayout()
+        right_panel.addLayout(self.meetings_container)
+        right_panel.addStretch()
+
+        self.content_layout.addWidget(self.right_panel_widget, 1)
+
     def update_time(self):
-        now = QDateTime.currentDateTime()
-        self.clock_label.setText(now.toString("HH:mm"))
-        self.date_label.setText(now.toString("dddd, d 'de' MMMM").capitalize())
+        if hasattr(self, 'clock_widget'):
+            self.clock_widget.update()
 
     def update_calendar(self):
+        """Lanza la petición de reuniones en un hilo de fondo para no bloquear la UI."""
         if not self.calendar_manager:
             return
-            
-        # Limpiar anterior
-        for i in reversed(range(self.meetings_container.count())): 
-            widget = self.meetings_container.itemAt(i).widget()
-            if widget:
+        # Evitar lanzar un nuevo worker si el anterior aún está corriendo
+        if hasattr(self, '_cal_worker') and self._cal_worker.isRunning():
+            return
+        self._cal_worker = CalendarFetchWorker(self.calendar_manager)
+        self._cal_worker.meetings_ready.connect(self._on_meetings_ready)
+        self._cal_worker.start()
+    def _on_meetings_ready(self, raw_meetings, status):
+        """Recibe los datos del worker y actualiza la UI en el hilo principal."""
+        if not hasattr(self, 'meetings_container'):
+            return
+
+        # Limpiar tarjetas anteriores
+        for i in reversed(range(self.meetings_container.count())):
+            item = self.meetings_container.itemAt(i)
+            widget = item.widget() if item is not None else None
+            if widget is not None:
                 widget.setParent(None)
-                
-        raw_meetings = self.calendar_manager.get_upcoming_meetings()
-        
-        # Filtrar solo las de HOY en hora local
+
+        # Mostrar aviso si el token ha expirado o hay error de autenticación
+        if status in ("expired", "unauthenticated"):
+            warn = QLabel("⚠ Sesión caducada — Accede al panel Admin para re-autenticar.")
+            warn.setWordWrap(True)
+            warn.setStyleSheet(
+                "color: #e67e22; font-size: 14px; font-style: italic; margin-top: 8px;"
+            )
+            self.meetings_container.addWidget(warn)
+            return
+        if status == "forbidden":
+            warn = QLabel("⚠ Error de permisos (403). Revisa la configuración del email de sala en Admin.")
+            warn.setWordWrap(True)
+            warn.setStyleSheet(
+                "color: #e74c3c; font-size: 14px; font-style: italic; margin-top: 8px;"
+            )
+            self.meetings_container.addWidget(warn)
+            return
+        if status == "error":
+            warn = QLabel("⚠ No se pudo conectar con el calendario.")
+            warn.setWordWrap(True)
+            warn.setStyleSheet(
+                "color: #e74c3c; font-size: 14px; font-style: italic; margin-top: 8px;"
+            )
+            self.meetings_container.addWidget(warn)
+            return
+
+        # Graph devuelve start.dateTime en la timezone del evento (start.timeZone).
+        # No asumimos UTC: usamos la hora tal como viene para mostrarla,
+        # y filtramos por el día local del sistema operativo.
         today = datetime.now().date()
         meetings = []
-        
+
         for mtg in raw_meetings:
             try:
-                # El formato de Microsoft es "2023-10-27T10:00:00.0000000"
-                start_dt_str = mtg['start']['dateTime'].split('.')[0]
-                start_dt_utc = datetime.strptime(start_dt_str, "%Y-%m-%dT%H:%M:%S")
-                
-                # Convertir a local (ajuste simple si no usamos pytz)
-                # Como recibimos UTC, sumamos el desfase local si es necesario o simplemente comparamos fechas
-                # Para España (UTC+1/UTC+2), un ajuste de +2h es común en verano
-                # Pero lo ideal es usar la fecha del objeto datetime
-                
-                # Intentamos detectar si la reunión cae hoy localmente
-                # Para simplificar, aceptamos las que empiecen hoy o terminen hoy
-                if start_dt_utc.date() == today:
+                # Recortar microsegundos si los hay: "2024-05-18T10:00:00.0000000" → "2024-05-18T10:00:00"
+                start_raw = mtg['start']['dateTime'].split('.')[0]
+                start_tz_name = mtg['start'].get('timeZone', '')
+
+                start_naive = datetime.strptime(start_raw, "%Y-%m-%dT%H:%M:%S")
+
+                # Intentar convertir usando la timezone del evento si está disponible
+                try:
+                    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+                    tz = ZoneInfo(start_tz_name) if start_tz_name else None
+                    start_dt = start_naive.replace(tzinfo=tz).astimezone() if tz else start_naive
+                except Exception:
+                    # Si la timezone no es IANA (p.ej. "Romance Standard Time"),
+                    # usar la hora tal como viene (que Graph ya ajusta al rango pedido)
+                    start_dt = start_naive
+
+                if start_dt.date() == today:
+                    mtg['_start_local'] = start_dt
                     meetings.append(mtg)
             except Exception as e:
-                print(f"Error procesando fecha de reunión: {e}")
+                logger.warning("Error procesando fecha de reunión: %s", e)
 
         if not meetings:
             no_meetings = QLabel("No hay más reuniones para hoy.")
@@ -217,7 +473,7 @@ class MainWindow(QMainWindow):
             self.meetings_container.addWidget(no_meetings)
             return
 
-        for mtg in meetings[:5]: # Mostrar máximo 5
+        for idx, mtg in enumerate(meetings[:5]):  # Mostrar máximo 5
             card = QFrame()
             card.setObjectName("MeetingCard")
             card.setStyleSheet("""
@@ -229,22 +485,23 @@ class MainWindow(QMainWindow):
                 }
             """)
             card_layout = QVBoxLayout(card)
-            
+
             subject_text = mtg.get('subject', 'Sin Título')
             subject = QLabel(subject_text)
             subject.setStyleSheet("color: white; font-weight: bold; font-size: 16px;")
             subject.setWordWrap(True)
-            
-            # Formatear horas (ajuste manual para España UTC+2 por ahora)
+
+            # Usar la hora ya procesada y cacheada en el filtrado anterior
             try:
-                start_str = mtg['start']['dateTime'].split('T')[1][:5]
-                # Ajuste de hora (Microsoft envía UTC)
-                h, m = map(int, start_str.split(':'))
-                h = (h + 2) % 24 # Ajuste para España (Verano UTC+2)
-                time_label = QLabel(f"{h:02d}:{m:02d}")
+                start_dt_local = mtg.get('_start_local')
+                if start_dt_local is None:
+                    start_raw = mtg['start']['dateTime'].split('.')[0]
+                    start_dt_local = datetime.strptime(start_raw, "%Y-%m-%dT%H:%M:%S")
+                time_label = QLabel(start_dt_local.strftime("%H:%M"))
                 time_label.setStyleSheet("color: #bdc3c7; font-size: 14px;")
-            except:
+            except Exception:
                 time_label = QLabel("Hora no disponible")
+                time_label.setStyleSheet("color: #bdc3c7; font-size: 14px;")
 
             card_layout.addWidget(subject)
             card_layout.addWidget(time_label)
@@ -271,64 +528,125 @@ class MainWindow(QMainWindow):
 
             self.meetings_container.addWidget(card)
 
+            # Fade-in escalonado: cada tarjeta aparece 80ms después de la anterior
+            self._animate_card_in(card, delay_ms=idx * 80)
+
+    def _animate_card_in(self, widget, delay_ms: int = 0):
+        """Aplica un fade-in suave a un widget con un retraso opcional."""
+        effect = QGraphicsOpacityEffect(widget)
+        widget.setGraphicsEffect(effect)
+        effect.setOpacity(0.0)
+
+        def start_anim():
+            anim = QPropertyAnimation(effect, b"opacity")
+            anim.setDuration(350)
+            anim.setStartValue(0.0)
+            anim.setEndValue(1.0)
+            anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            anim.finished.connect(lambda: widget.setGraphicsEffect(None))
+            anim.start()
+            # Guardar referencia para evitar GC prematuro
+            widget._card_anim = anim
+
+        if delay_ms > 0:
+            QTimer.singleShot(delay_ms, start_anim)
+        else:
+            start_anim()
+
     def refresh_apps(self):
-        for i in reversed(range(self.grid_layout.count())): 
-            widget = self.grid_layout.itemAt(i).widget()
-            if widget:
+        # Limpiar grid
+        for i in reversed(range(self.grid_layout.count())):
+            item = self.grid_layout.itemAt(i)
+            widget = item.widget() if item is not None else None
+            if widget is not None:
+                self.grid_layout.removeWidget(widget)
                 widget.setParent(None)
+                widget.deleteLater()
 
         apps = self.config_manager.get_apps()
-        row, col = 0, 0
-        max_cols = 3
+        self.app_grid = AppGrid(apps, parent=self.apps_container, on_launch=self._on_launch_error)
+        self.grid_layout.addWidget(self.app_grid, 0, 0)
 
-        for app in apps:
-            btn = QPushButton(app['name'])
-            btn.setObjectName("AppButton")
-            
-            icon_path = app.get('icon', '')
-            if icon_path and os.path.exists(icon_path):
-                btn.setIcon(QIcon(icon_path))
-                btn.setIconSize(QSize(100, 100))
-            
-            btn.clicked.connect(lambda checked, a=app: launch_application(a))
-            self.grid_layout.addWidget(btn, row, col)
-            
-            col += 1
-            if col >= max_cols:
-                col = 0
-                row += 1
+    def _on_launch_error(self, error: str, app_info: dict):
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Error al abrir aplicación")
+        msg.setText(error)
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        for b in msg.buttons():
+            b.setMinimumSize(120, 50)
+        msg.exec()
 
     def end_meeting(self):
-        reply = QMessageBox.question(self, 'Finalizar Reunión', 
-                                    '¿Estás seguro de que quieres finalizar la reunión?\nSe cerrarán todas las aplicaciones abiertas.', 
-                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        
-        if reply == QMessageBox.StandardButton.Yes:
+        dlg = TouchConfirmDialog(
+            title="Finalizar Reunión",
+            message="¿Confirmas que quieres finalizar la reunión?\nSe cerrarán todas las aplicaciones abiertas.",
+            confirm_text="Finalizar",
+            cancel_text="Cancelar",
+            danger=True,
+            parent=self,
+        )
+        if dlg.exec():
             close_all_launched_apps()
-            QMessageBox.information(self, "Reunión Finalizada", "Se han cerrado las aplicaciones. El sistema está listo.")
+            info = TouchConfirmDialog(
+                title="Reunión finalizada",
+                message="Se han cerrado las aplicaciones.\nEl sistema está listo para la próxima reunión.",
+                confirm_text="Aceptar",
+                cancel_text="",
+                danger=False,
+                parent=self,
+            )
+            # Ocultar botón cancelar cuando es solo informativo
+            for btn in info.findChildren(QPushButton):
+                if btn.text() == "":
+                    btn.hide()
+            info.exec()
 
     def open_admin_panel(self):
-        login = AdminLoginDialog(self.config_manager.get_admin_password(), self)
+        login = TouchAdminLoginDialog(self.config_manager.get_admin_password(), self)
         if login.exec():
-            panel = AdminPanelDialog(self.config_manager, self)
+            # Pasar el calendar_manager real para que la autenticación
+            # ocurra en la misma instancia, no en una temporal descartable
+            panel = AdminPanelDialog(self.config_manager, self,
+                                     calendar_manager=self.calendar_manager)
             panel.exec()
-            # Reiniciar app si cambió algo del calendario
-            if self.config_manager.config.get("calendar_enabled") and not self.calendar_manager:
+
+            # Si el calendario acaba de activarse (o se re-vinculó), reconstruir
+            if self.config_manager.config.get("calendar_enabled"):
                 client_id = self.config_manager.get_client_id()
                 tenant_id = self.config_manager.get_tenant_id()
+                room_email = self.config_manager.get_room_email()
                 if client_id:
-                    self.calendar_manager = CalendarManager(client_id, tenant_id)
-                    # Re-inicializar UI para mostrar el panel de calendario
-                    self.init_ui()
-            
+                    # Reutilizar el calendar_manager si el panel lo actualizó,
+                    # o crear uno nuevo si aún no existe
+                    if panel.calendar_manager is not None:
+                        self.calendar_manager = panel.calendar_manager
+                    elif self.calendar_manager is None:
+                        self.calendar_manager = CalendarManager(
+                            client_id, tenant_id, room_email
+                        )
+                    if self.right_panel_widget is None:
+                        self._setup_calendar_panel()
+                    if not hasattr(self, 'cal_timer'):
+                        self.cal_timer = QTimer(self)
+                        self.cal_timer.timeout.connect(self.update_calendar)
+                        self.cal_timer.start(1 * 60 * 1000)
+                    self.update_calendar()
+
             self.refresh_apps()
 
     def open_running_apps_panel(self):
         dialog = RunningAppsDialog(self)
         dialog.exec()
 
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape:
-            event.ignore()
+    def mousePressEvent(self, a0):  # type: ignore[override]
+        """Cualquier toque reinicia el contador de inactividad."""
+        if hasattr(self, 'inactivity'):
+            self.inactivity.reset()
+        super().mousePressEvent(a0)
+
+    def keyPressEvent(self, a0):  # type: ignore[override]
+        if a0 is not None and a0.key() == Qt.Key.Key_Escape:
+            a0.ignore()
         else:
-            super().keyPressEvent(event)
+            super().keyPressEvent(a0)

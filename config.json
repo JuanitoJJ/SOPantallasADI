@@ -2,18 +2,24 @@
     "admin_password": "",
     "apps": [
         {
-            "name": "Winrar",
-            "path": "C:\\Program Files\\WinRAR\\WinRAR.exe",
-            "icon": "assets/icons\\WinRAR.png"
-        },
-        {
             "name": "Google Chrome",
             "path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
             "icon": "assets/icons\\chrome.png"
+        },
+        {
+            "name": "Paint",
+            "path": "C:\\WINDOWS\\system32\\mstsc.exe",
+            "icon": "assets/icons\\mstsc.png"
         }
     ],
-    "corporate_name": "SISTEMA CORPORATIVO",
+    "corporate_name": "Sala 2 ADI",
     "calendar_enabled": true,
-    "client_id": "",
-    "tenant_id": "common"
+    "client_id": "bc954c33-4db2-4408-957c-b964cdfa00a3",
+    "tenant_id": "a4137140-573a-4c03-961c-b5eaee69aacc",
+    "inactivity_timeout_minutes": 5,
+    "wallpaper_folder": "assets/wallpapers",
+    "wallpaper_interval_seconds": 60,
+    "room_email": "j.jarque@adigrupo.com",
+    "client_secret": "S538Q~w_Dm3eJQgjzXqV0ENwVzMd5h5ZSGT2icFY",
+    "theme": "dark"
 }

@@ -1,4 +1,5 @@
 import ctypes
+from ctypes import cast, POINTER
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 
@@ -10,9 +11,6 @@ def get_volume_interface():
         return cast(interface, POINTER(IAudioEndpointVolume))
     except:
         return None
-
-# Importar cast aquí si no se hace arriba (está en ctypes)
-from ctypes import cast, POINTER
 
 def set_system_volume(level):
     """Establece el volumen del sistema (0 a 100)."""

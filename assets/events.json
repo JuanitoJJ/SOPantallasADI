@@ -1,0 +1,32 @@
+[
+    {
+        "date": "01-01",
+        "title": "Feliz Año Nuevo",
+        "message": "Comienza un nuevo año lleno de oportunidades para crecer juntos."
+    },
+    {
+        "date": "01-06",
+        "title": "Día de Reyes",
+        "message": "Celebramos la tradición y los nuevos comienzos."
+    },
+    {
+        "date": "02-14",
+        "title": "San Valentín",
+        "message": "Un día para celebrar las conexiones que importan."
+    },
+    {
+        "date": "05-01",
+        "title": "Día del Trabajo",
+        "message": "Celebramos el esfuerzo y dedicación de cada persona del equipo."
+    },
+    {
+        "date": "10-12",
+        "title": "Día de la Hispanidad",
+        "message": "Celebramos nuestra cultura, idioma y unidad."
+    },
+    {
+        "date": "12-25",
+        "title": "Feliz Navidad",
+        "message": "Paz, salud y éxitos para ti y tu familia."
+    }
+]

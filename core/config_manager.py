@@ -1,11 +1,16 @@
 import json
 import os
 from dotenv import load_dotenv
+from core.logger import get_logger
 
-# Cargar variables de entorno desde .env si existe
 load_dotenv()
 
+logger = get_logger("core.config_manager")
+
 CONFIG_FILE = "config.json"
+
+DEFAULT_THEME = "dark"
+
 
 class ConfigManager:
     def __init__(self):
@@ -17,9 +22,8 @@ class ConfigManager:
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception as e:
-                print(f"Error cargando config: {e}")
-        
-        # Configuración por defecto
+                logger.error("Error cargando config: %s", e)
+
         default_config = {
             "admin_password": "admin",
             "apps": [
@@ -32,7 +36,16 @@ class ConfigManager:
             "corporate_name": "SISTEMA CORPORATIVO",
             "calendar_enabled": False,
             "client_id": "",
-            "tenant_id": "common"
+            "tenant_id": "common",
+            "client_secret": "",
+            "room_email": "",
+            "inactivity_timeout_minutes": 5,
+            "wallpaper_folder": "assets/wallpapers",
+            "wallpaper_interval_seconds": 60,
+            "theme": DEFAULT_THEME,
+            "notification_sound_enabled": True,
+            "notification_sound_path": "",
+            "alert_minutes_before_meeting": 5,
         }
         self.save_config(default_config)
         return default_config
@@ -41,40 +54,77 @@ class ConfigManager:
         if config:
             self.config = config
         try:
+            if self.config.get("wallpaper_folder") == "assets/wallpapers":
+                os.makedirs("assets/wallpapers", exist_ok=True)
+
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=4)
         except Exception as e:
-            print(f"Error guardando config: {e}")
+            logger.error("Error guardando config: %s", e)
+
+    def get_wallpaper_settings(self):
+        return {
+            "folder": self.config.get("wallpaper_folder", "assets/wallpapers"),
+            "interval": self.config.get("wallpaper_interval_seconds", 60)
+        }
 
     def get_apps(self):
         return self.config.get("apps", [])
 
+    def get_theme(self) -> str:
+        """Retorna el tema configurado (variable de entorno tiene prioridad)."""
+        env_theme = os.getenv("THEME")
+        if env_theme:
+            return env_theme
+        return self.config.get("theme", DEFAULT_THEME)
+
+    def set_theme(self, theme_id: str):
+        """Cambia el tema y persiste en config."""
+        valid_themes = ["dark", "light", "high_contrast"]
+        if theme_id not in valid_themes:
+            logger.warning("Tema inválido '%s', ignorando", theme_id)
+            return False
+        self.config["theme"] = theme_id
+        self.save_config()
+        logger.info("Tema guardado en config: %s", theme_id)
+        return True
+
     def get_admin_password(self):
-        # Priorizar variable de entorno
         env_pass = os.getenv("ADMIN_PASSWORD")
         if env_pass:
             return env_pass
         return self.config.get("admin_password", "admin")
-    
+
     def get_client_id(self):
-        # Priorizar variable de entorno
         env_client = os.getenv("CLIENT_ID")
         if env_client:
             return env_client
         return self.config.get("client_id", "")
 
     def get_tenant_id(self):
-        # Priorizar variable de entorno
         env_tenant = os.getenv("TENANT_ID")
         if env_tenant:
             return env_tenant
         return self.config.get("tenant_id", "common")
 
-    def add_app(self, name, path, icon=""):
+    def get_client_secret(self):
+        env_secret = os.getenv("CLIENT_SECRET")
+        if env_secret:
+            return env_secret
+        return self.config.get("client_secret", "")
+
+    def get_room_email(self):
+        env_room = os.getenv("ROOM_EMAIL")
+        if env_room:
+            return env_room
+        return self.config.get("room_email", "")
+
+    def add_app(self, name, path, icon="", category=""):
         self.config["apps"].append({
             "name": name,
             "path": path,
-            "icon": icon
+            "icon": icon,
+            "category": category or "Sin categoría",
         })
         self.save_config()
 
@@ -82,3 +132,23 @@ class ConfigManager:
         if 0 <= index < len(self.config["apps"]):
             self.config["apps"].pop(index)
             self.save_config()
+
+    def move_app(self, index: int, direction: int):
+        apps = self.config.get("apps", [])
+        new_index = index + direction
+        if 0 <= new_index < len(apps):
+            apps[index], apps[new_index] = apps[new_index], apps[index]
+            self.save_config()
+
+    def set_app_category(self, index: int, category: str):
+        apps = self.config.get("apps", [])
+        if 0 <= index < len(apps):
+            apps[index]["category"] = category
+            self.save_config()
+
+    def get_notification_settings(self) -> dict:
+        return {
+            "sound_enabled": self.config.get("notification_sound_enabled", True),
+            "sound_path": self.config.get("notification_sound_path", ""),
+            "alert_minutes_before": self.config.get("alert_minutes_before_meeting", 5),
+        }

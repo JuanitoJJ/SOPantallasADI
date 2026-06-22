@@ -1,85 +1,135 @@
 import msal
 import requests
 import os
-import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from core.logger import get_logger
+from core.calendar_cache import MeetingsCache
 
 CACHE_FILE = "token_cache.bin"
 GRAPH_URL = "https://graph.microsoft.com/v1.0"
 
+logger = get_logger("core.calendar_manager")
+
+# Códigos de error de Graph API
+_TOKEN_EXPIRED_CODE = 401
+_PERMISSION_DENIED_CODE = 403
+
+
 class CalendarManager:
-    def __init__(self, client_id, tenant_id="common"):
+    def __init__(self, client_id, tenant_id="common", room_email="", client_secret=None):
         self.client_id = client_id
         self.tenant_id = tenant_id
+        self.room_email = room_email
+        self.client_secret = client_secret
         self.authority = f"https://login.microsoftonline.com/{tenant_id}"
-        self.scopes = ["Calendars.Read"]
         
-        # Setup Token Cache
+        # En modo Aplicación usamos /.default, en modo Usuario scopes específicos
+        self.scopes = ["https://graph.microsoft.com/.default"] if client_secret else [
+            "User.Read", "Calendars.Read", "Calendars.Read.Shared", "openid", "profile", "offline_access"
+        ]
+
+        self.auth_status = "unauthenticated"
         self.cache = msal.SerializableTokenCache()
+        self.meetings_cache = MeetingsCache()
+
         if os.path.exists(CACHE_FILE):
-            with open(CACHE_FILE, "r") as f:
-                self.cache.deserialize(f.read())
-        
-        self.app = msal.PublicClientApplication(
-            self.client_id, 
-            authority=self.authority,
-            token_cache=self.cache
-        )
+            try:
+                with open(CACHE_FILE, "r") as f:
+                    self.cache.deserialize(f.read())
+                if self.cache.serialize() != "{}":
+                    self.auth_status = "ok"
+            except: pass
+
+        if self.client_secret:
+            self.app = msal.ConfidentialClientApplication(
+                self.client_id,
+                authority=self.authority,
+                client_credential=self.client_secret,
+                token_cache=self.cache
+            )
+            self.auth_status = "ok"
+        else:
+            self.app = msal.PublicClientApplication(
+                self.client_id,
+                authority=self.authority,
+                token_cache=self.cache
+            )
 
     def save_cache(self):
         if self.cache.has_state_changed:
-            with open(CACHE_FILE, "w") as f:
-                f.write(self.cache.serialize())
+            try:
+                with open(CACHE_FILE, "w") as f:
+                    f.write(self.cache.serialize())
+            except Exception as e:
+                logger.error("Error guardando caché de token: %s", e)
+
+    def logout(self):
+        """Elimina las cuentas y limpia el cache."""
+        if not self.client_secret:
+            for account in self.app.get_accounts():
+                self.app.remove_account(account)
+        self.cache = msal.SerializableTokenCache()
+        if os.path.exists(CACHE_FILE):
+            os.remove(CACHE_FILE)
+        self.auth_status = "unauthenticated"
 
     def get_token(self):
-        # 1. Try to get from cache
+        """Obtiene token de acceso."""
+        if self.client_secret:
+            result = self.app.acquire_token_for_client(scopes=self.scopes)
+            if "access_token" in result:
+                self.auth_status = "ok"
+                return result["access_token"]
+            self.auth_status = "error"
+            return None
+
         accounts = self.app.get_accounts()
         if accounts:
-            result = self.app.acquire_token_silent(self.scopes, account=accounts[0])
-            if result:
-                self.save_cache()
-                return result.get("access_token")
+            try:
+                result = self.app.acquire_token_silent(self.scopes, account=accounts[0])
+                if result and "access_token" in result:
+                    self.save_cache()
+                    self.auth_status = "ok"
+                    return result["access_token"]
+            except Exception as e:
+                logger.error("Error renovando token: %s", e)
+
+        if not accounts:
+            self.auth_status = "unauthenticated"
+        else:
+            self.auth_status = "expired"
         return None
 
     def initiate_device_flow(self):
-        """
-        Inicia el flujo de código de dispositivo.
-        Devuelve el diccionario de flujo que contiene 'user_code' y 'message'.
-        """
+        if self.client_secret: return None
         flow = self.app.initiate_device_flow(scopes=self.scopes)
         if "user_code" not in flow:
-            error_msg = flow.get("error_description") or flow.get("error") or "Desconocido"
-            raise Exception(f"No se pudo iniciar el flujo de dispositivo: {error_msg}")
+            raise Exception("No se pudo iniciar el flujo de dispositivo")
         return flow
 
     def complete_device_flow(self, flow):
-        """
-        Espera a que el usuario complete el inicio de sesión.
-        """
         result = self.app.acquire_token_by_device_flow(flow)
         if "access_token" in result:
             self.save_cache()
+            self.auth_status = "ok"
             return True
         return False
 
     def get_upcoming_meetings(self):
-        """
-        Obtiene las reuniones de hoy.
-        """
         token = self.get_token()
         if not token:
-            return []
+            return [], self.auth_status
 
-        # Rango de tiempo: Un poco más amplio para evitar problemas de zona horaria
-        now = datetime.utcnow()
-        # Pedimos desde hace 12 horas hasta dentro de 24 horas para cubrir todo el día local
-        start_range = (now - timedelta(hours=12)).isoformat() + "Z"
-        end_range = (now + timedelta(hours=24)).isoformat() + "Z"
+        local_now = datetime.now()
+        local_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        local_end = local_start + timedelta(days=1)
+        utc_start = local_start.astimezone(timezone.utc)
+        utc_end = local_end.astimezone(timezone.utc)
 
-        headers = {
-            'Authorization': f'Bearer {token}',
-            'Prefer': 'outlook.timezone="UTC"' # Usamos UTC y convertimos nosotros
-        }
+        start_range = (utc_start - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        end_range = (utc_end + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        headers = {'Authorization': f'Bearer {token}'}
         params = {
             'startDateTime': start_range,
             'endDateTime': end_range,
@@ -88,19 +138,128 @@ class CalendarManager:
             '$top': '20'
         }
 
+        if self.room_email and self.room_email.strip():
+            endpoint = f"{GRAPH_URL}/users/{self.room_email.strip()}/calendarView"
+        else:
+            endpoint = f"{GRAPH_URL}/me/calendarView"
+
         try:
-            response = requests.get(
-                f"{GRAPH_URL}/me/calendarView",
-                headers=headers,
-                params=params,
-                timeout=10
-            )
+            response = requests.get(endpoint, headers=headers, params=params, timeout=10)
             if response.status_code == 200:
                 events = response.json().get('value', [])
-                return events
+                self.auth_status = "ok"
+                self.meetings_cache.save(events)
+                return events, "ok"
+            elif response.status_code == _TOKEN_EXPIRED_CODE:
+                self.auth_status = "expired"
+                cached, _ = self.meetings_cache.load()
+                if cached:
+                    logger.info("Usando reuniones en cache por token expirado")
+                    return cached, "expired"
+                return [], "expired"
+            elif response.status_code == _PERMISSION_DENIED_CODE:
+                self.auth_status = "forbidden"
+                return [], "forbidden"
             else:
-                print(f"Error Graph API: {response.status_code} - {response.text}")
-                return []
-        except Exception as e:
-            print(f"Error fetching meetings: {e}")
+                self.auth_status = "error"
+                cached, _ = self.meetings_cache.load()
+                if cached:
+                    logger.info("Usando reuniones en cache por error de red")
+                    return cached, "error"
+                return [], "error"
+        except Exception as exc:
+            logger.warning("Fallo de red al obtener reuniones: %s", exc)
+            self.auth_status = "error"
+            cached, _ = self.meetings_cache.load()
+            if cached:
+                logger.info("Usando reuniones en cache por excepción de red")
+                return cached, "error"
+            return [], "error"
+
+    def get_cached_meetings(self) -> list:
+        meetings, _ = self.meetings_cache.load()
+        return meetings
+
+    @staticmethod
+    def parse_meeting_datetime(mtg: dict) -> datetime:
+        """Parsea el campo start.dateTime de Graph API a un datetime local."""
+        start_raw = mtg.get('start', {}).get('dateTime', '').split('.')[0]
+        if not start_raw:
+            return None
+        try:
+            start_naive = datetime.strptime(start_raw, "%Y-%m-%dT%H:%M:%S")
+        except ValueError:
+            return None
+        start_tz_name = mtg.get('start', {}).get('timeZone', '')
+        try:
+            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+            tz = ZoneInfo(start_tz_name) if start_tz_name else None
+            return start_naive.replace(tzinfo=tz).astimezone() if tz else start_naive
+        except Exception:
+            return start_naive
+
+    @staticmethod
+    def get_meeting_join_url(mtg: dict) -> str:
+        """Extrae la URL de unirse a la reunión online (Teams)."""
+        return mtg.get('onlineMeetingUrl') or (mtg.get('onlineMeeting') or {}).get('joinUrl', '')
+
+    def get_upcoming_alerts(self, minutes_ahead: int = 10) -> list:
+        """Retorna reuniones que están por empezar en los próximos N minutos
+        y que aún no han sido alertadas.
+
+        Cada elemento es un dict con: id, subject, start_dt, end_dt, join_url, minutes_until
+        """
+        events, status = self.get_upcoming_meetings()
+        if status != "ok" or not events:
             return []
+
+        now = datetime.now()
+        alerts = []
+        for mtg in events:
+            mtg_id = mtg.get('id') or mtg.get('iCalUId', '')
+            start_dt = self.parse_meeting_datetime(mtg)
+            if not start_dt:
+                continue
+            delta = (start_dt - now).total_seconds() / 60.0
+            if 0 <= delta <= minutes_ahead:
+                end_raw = mtg.get('end', {}).get('dateTime', '').split('.')[0]
+                end_dt = None
+                try:
+                    end_dt = datetime.strptime(end_raw, "%Y-%m-%dT%H:%M:%S")
+                except ValueError:
+                    end_dt = None
+                alerts.append({
+                    "id": mtg_id,
+                    "subject": mtg.get('subject', 'Sin título'),
+                    "start_dt": start_dt,
+                    "end_dt": end_dt,
+                    "join_url": self.get_meeting_join_url(mtg),
+                    "minutes_until": int(delta),
+                })
+        return alerts
+
+    def get_ongoing_meetings(self) -> list:
+        """Retorna reuniones que están en curso ahora mismo."""
+        events, status = self.get_upcoming_meetings()
+        if status != "ok" or not events:
+            return []
+        now = datetime.now()
+        ongoing = []
+        for mtg in events:
+            start_dt = self.parse_meeting_datetime(mtg)
+            if not start_dt:
+                continue
+            end_raw = mtg.get('end', {}).get('dateTime', '').split('.')[0]
+            try:
+                end_dt = datetime.strptime(end_raw, "%Y-%m-%dT%H:%M:%S")
+            except ValueError:
+                continue
+            if start_dt <= now <= end_dt:
+                ongoing.append({
+                    "id": mtg.get('id', ''),
+                    "subject": mtg.get('subject', 'Sin título'),
+                    "start_dt": start_dt,
+                    "end_dt": end_dt,
+                    "join_url": self.get_meeting_join_url(mtg),
+                })
+        return ongoing
