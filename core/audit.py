@@ -4,7 +4,7 @@ audit.py — Capa de auditoría sobre la base de datos SQLite.
 Provee funciones de alto nivel para registrar eventos de uso:
 - Lanzamientos y cierres de aplicaciones
 - Reuniones: alertas, joins, finalizaciones
-- Sesiones: arranque, fin, screensaver
+- Sesiones: arranque, fin, kiosk_exit, sesiones HDMI
 - Notificaciones
 """
 import os
@@ -63,16 +63,17 @@ def log_session_end(details: str = ""):
     database.log_session("end", details)
 
 
-def log_screensaver_activated():
-    database.log_session("screensaver_on")
-
-
-def log_screensaver_dismissed():
-    database.log_session("screensaver_off")
-
-
 def log_kiosk_exit():
     database.log_session("kiosk_exit")
+
+
+def log_hdmi_session_start(details: str = ""):
+    database.log_session("hdmi_session_start", details)
+
+
+def log_hdmi_session_end(duration_seconds: int = 0):
+    details = f"duration_seconds={duration_seconds}"
+    database.log_session("hdmi_session_end", details)
 
 
 # ── Notifications ────────────────────────────────────────────────

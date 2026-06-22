@@ -115,6 +115,33 @@ QPushButton#RunningAppsButton:pressed {
     background-color: #ccaa00;
 }
 
+QPushButton#ShareScreenButton {
+    background-color: #00ffff;
+    color: #000000;
+    border: 3px solid #ffffff;
+    border-radius: 10px;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 15px 30px;
+}
+
+QPushButton#ShareScreenButton:hover {
+    background-color: #ffffff;
+    color: #000000;
+    border-color: #00ffff;
+}
+
+QPushButton#ShareScreenButton:pressed {
+    background-color: #00cccc;
+    color: #000000;
+}
+
+QPushButton#ShareScreenButton:disabled {
+    background-color: #333333;
+    color: #777777;
+    border-color: #555555;
+}
+
 QSlider::groove:horizontal {
     border: 2px solid #ffffff;
     height: 18px;

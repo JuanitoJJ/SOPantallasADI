@@ -29,8 +29,9 @@ class ConfigManager:
             "apps": [
                 {
                     "name": "Microsoft Teams",
-                    "path": os.path.expandvars(r"%LocalAppData%\Microsoft\Teams\current\Teams.exe"),
-                    "icon": "assets/icons/teams.png"
+                    "path": os.path.expandvars(r"%LocalAppData%\Microsoft\WindowsApps\ms-teams.exe"),
+                    "icon": "assets/icons/ms-teams.png",
+                    "category": "Reuniones",
                 }
             ],
             "corporate_name": "SISTEMA CORPORATIVO",
@@ -39,7 +40,6 @@ class ConfigManager:
             "tenant_id": "common",
             "client_secret": "",
             "room_email": "",
-            "inactivity_timeout_minutes": 5,
             "wallpaper_folder": "assets/wallpapers",
             "wallpaper_interval_seconds": 60,
             "theme": DEFAULT_THEME,
@@ -152,3 +152,33 @@ class ConfigManager:
             "sound_path": self.config.get("notification_sound_path", ""),
             "alert_minutes_before": self.config.get("alert_minutes_before_meeting", 5),
         }
+
+    # ── HDMI Input ─────────────────────────────────────────────
+    def get_hdmi_input(self) -> dict:
+        """Devuelve la configuración de la entrada HDMI.
+
+        Defaults: enabled=False, device_index=0, 1920x1080 @ 30 fps.
+        """
+        hdmi = self.config.get("hdmi_input", {})
+        return {
+            "enabled": hdmi.get("enabled", False),
+            "device_index": int(hdmi.get("device_index", 0)),
+            "width": int(hdmi.get("width", 1920)),
+            "height": int(hdmi.get("height", 1080)),
+            "fps": int(hdmi.get("fps", 30)),
+        }
+
+    def set_hdmi_input(self, enabled: bool, device_index: int = 0,
+                       width: int = 1920, height: int = 1080, fps: int = 30):
+        """Guarda la configuración HDMI."""
+        self.config["hdmi_input"] = {
+            "enabled": bool(enabled),
+            "device_index": int(device_index),
+            "width": int(width),
+            "height": int(height),
+            "fps": int(fps),
+        }
+        self.save_config()
+
+    def is_hdmi_enabled(self) -> bool:
+        return bool(self.config.get("hdmi_input", {}).get("enabled", False))

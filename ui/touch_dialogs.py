@@ -216,10 +216,35 @@ class TouchNumpad(QWidget):
 # ─────────────────────────────────────────────
 #  Teclado Alfanumérico táctil
 # ─────────────────────────────────────────────
+_SHIFT_STYLE = """
+    QPushButton {{
+        background-color: {bg};
+        color: {fg};
+        border: 2px solid #34495e;
+        border-radius: 10px;
+        font-size: 22px;
+        font-weight: bold;
+        min-width: 72px;
+        min-height: 72px;
+    }}
+    QPushButton:pressed {{
+        background-color: {bg_pressed};
+    }}
+    QPushButton:checked {{
+        background-color: {bg_active};
+        color: white;
+        border-color: #3498db;
+    }}
+"""
+
+_SHIFT_OFF_STYLE = _SHIFT_STYLE.format(bg="#2c3e50", fg="#ecf0f1", bg_pressed="#3d566e", bg_active="#3498db")
+
+
 class TouchAlphanumericKeyboard(QWidget):
     """
     Teclado alfanumérico táctil.
     Escribe en un QLineEdit asociado.
+    Soporta mayúsculas/minúsculas mediante tecla Shift.
     """
 
     def __init__(self, line_edit: QLineEdit, max_length: int = 32, parent=None):
@@ -227,6 +252,7 @@ class TouchAlphanumericKeyboard(QWidget):
         self._input = line_edit
         self._max_length = max_length
         self._is_caps = True
+        self._letter_buttons = {}  # key_lower -> QPushButton (para actualizar label)
         self._build()
 
     def _build(self):
@@ -235,39 +261,74 @@ class TouchAlphanumericKeyboard(QWidget):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Filas del teclado
+        # Se guarda la versión en minúsculas; al pulsar Shift se actualizan
+        # los labels para reflejar mayúsculas o minúsculas.
         rows = [
-            ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
-            ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
-            ["A", "S", "D", "F", "G", "H", "J", "K", "L", "Ñ"],
-            ["Z", "X", "C", "V", "B", "N", "M", ",", ".", "-"],
-            ["⌫", "ESPACIO", "✓"]
+            [("1", "1"), ("2", "2"), ("3", "3"), ("4", "4"), ("5", "5"),
+             ("6", "6"), ("7", "7"), ("8", "8"), ("9", "9"), ("0", "0")],
+            [("Q", "q"), ("W", "w"), ("E", "e"), ("R", "r"), ("T", "t"),
+             ("Y", "y"), ("U", "u"), ("I", "i"), ("O", "o"), ("P", "p")],
+            [("A", "a"), ("S", "s"), ("D", "d"), ("F", "f"), ("G", "g"),
+             ("H", "h"), ("J", "j"), ("K", "k"), ("L", "l"), ("Ñ", "ñ")],
+            [("Z", "z"), ("X", "x"), ("C", "c"), ("V", "v"), ("B", "b"),
+             ("N", "n"), ("M", "m"), (",", ","), (".", "."), ("-", "-")],
         ]
 
         for row_keys in rows:
             row_layout = QHBoxLayout()
             row_layout.setSpacing(6)
-            for key in row_keys:
-                btn = QPushButton(key)
-                if key == "⌫":
-                    btn.setStyleSheet(_DELETE_STYLE)
-                    btn.setMinimumWidth(100)
-                    btn.clicked.connect(self._delete)
-                elif key == "✓":
-                    btn.setStyleSheet(_ENTER_STYLE)
-                    btn.setMinimumWidth(100)
-                    btn.clicked.connect(self._confirm)
-                elif key == "ESPACIO":
-                    btn.setStyleSheet(_KEY_STYLE)
-                    btn.setMinimumWidth(200)
-                    btn.clicked.connect(lambda: self._type(" "))
-                else:
-                    btn.setStyleSheet(_KEY_STYLE)
-                    btn.clicked.connect(self._make_key_handler(key))
+            for upper, lower in row_keys:
+                btn = QPushButton(upper)
+                btn.setStyleSheet(_KEY_STYLE)
+                # Guardamos referencia para poder actualizar el label al pulsar Shift
+                self._letter_buttons[lower] = btn
+                btn.clicked.connect(self._make_key_handler(upper, lower))
                 row_layout.addWidget(btn)
             self.main_layout.addLayout(row_layout)
 
-    def _make_key_handler(self, key: str):
-        return lambda: self._type(key)
+        # Fila inferior: Shift | ⌫ | ESPACIO | ✓
+        bottom_layout = QHBoxLayout()
+        bottom_layout.setSpacing(6)
+
+        self._shift_btn = QPushButton("⇧")
+        self._shift_btn.setStyleSheet(_SHIFT_OFF_STYLE)
+        self._shift_btn.setMinimumWidth(90)
+        self._shift_btn.setCheckable(True)
+        self._shift_btn.setChecked(True)  # Empieza en mayúsculas
+        self._shift_btn.setToolTip("Cambiar mayúsculas / minúsculas")
+        self._shift_btn.clicked.connect(self._toggle_caps)
+        bottom_layout.addWidget(self._shift_btn)
+
+        del_btn = QPushButton("⌫")
+        del_btn.setStyleSheet(_DELETE_STYLE)
+        del_btn.setMinimumWidth(100)
+        del_btn.setToolTip("Borrar último carácter")
+        del_btn.clicked.connect(self._delete)
+        bottom_layout.addWidget(del_btn)
+
+        space_btn = QPushButton("ESPACIO")
+        space_btn.setStyleSheet(_KEY_STYLE)
+        space_btn.setMinimumWidth(200)
+        space_btn.clicked.connect(lambda: self._type(" "))
+        bottom_layout.addWidget(space_btn)
+
+        enter_btn = QPushButton("✓")
+        enter_btn.setStyleSheet(_ENTER_STYLE)
+        enter_btn.setMinimumWidth(100)
+        enter_btn.setToolTip("Aceptar")
+        enter_btn.clicked.connect(self._confirm)
+        bottom_layout.addWidget(enter_btn)
+
+        self.main_layout.addLayout(bottom_layout)
+
+    def _toggle_caps(self):
+        self._is_caps = not self._is_caps
+        # Actualizar el texto de todos los botones de letras
+        for lower, btn in self._letter_buttons.items():
+            btn.setText(lower.upper() if self._is_caps else lower)
+
+    def _make_key_handler(self, upper: str, lower: str):
+        return lambda: self._type(upper if self._is_caps else lower)
 
     def _type(self, text: str):
         current = self._input.text()

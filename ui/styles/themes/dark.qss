@@ -108,6 +108,28 @@ QPushButton#RunningAppsButton:pressed {
     background-color: #2980b9;
 }
 
+QPushButton#ShareScreenButton {
+    background-color: #16a085;
+    color: white;
+    border-radius: 15px;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 15px 30px;
+}
+
+QPushButton#ShareScreenButton:hover {
+    background-color: #1abc9c;
+}
+
+QPushButton#ShareScreenButton:pressed {
+    background-color: #138d75;
+}
+
+QPushButton#ShareScreenButton:disabled {
+    background-color: #4a5a5a;
+    color: #7f8c8d;
+}
+
 QSlider::groove:horizontal {
     border: 1px solid #34495e;
     height: 16px;

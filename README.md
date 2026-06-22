@@ -40,6 +40,17 @@ Aplicación de interfaz táctil (kiosko) para pantallas de salas de reuniones co
 - Botón "Aplicaciones Abiertas" con diálogo de gestión
 - "Finalizar Reunión" cierra todos los procesos lanzados
 
+### Compartir pantalla (HDMI Input)
+- Card "Compartir pantalla" en el grid de apps (cuando está habilitada)
+- Captura en vivo del puerto HDMI de entrada de la pantalla interactiva
+- **OpenCV + DirectShow** con timeouts por operación (no se cuelga con drivers rotos)
+- **Ventana flotante** arrastrable, redimensionable, con botón X cerrar
+- Doble click en la barra superior → toggle fullscreen
+- Estado visible: 🟢 Señal activa / 🟡 Sin señal / 🔴 Error
+- Resolución configurable: 1920×1080, 1280×720, 640×480
+- FPS configurable: 15, 30, 60
+- Sesiones registradas en auditoría (`HDMI_SESSION_START` / `_END` con duración)
+
 ### Integración Microsoft 365 / Outlook
 - **Microsoft Graph API** con MSAL
 - Dos modos de autenticación:
@@ -113,6 +124,7 @@ Aplicación de interfaz táctil (kiosko) para pantallas de salas de reuniones co
 | **Auth kiosco** | Windows API nativo (ctypes) |
 | **Persistencia** | SQLite 3, JSON |
 | **Config** | python-dotenv |
+| **Captura video** | opencv-python 4.10 (DirectShow) |
 | **Build** | PyInstaller 6.20 |
 
 ---
@@ -308,6 +320,33 @@ Click "Exportar CSV"
            - Notificaciones
 ```
 
+### Flujo de "Compartir pantalla" (HDMI)
+
+```
+[ Pantalla principal ]
+   └─► Tocar card "Compartir pantalla" (al final del grid)
+       └─► MainWindow._open_hdmi_viewer()
+           ├─► Verifica is_hdmi_enabled() y dispositivo configurado
+           └─► HDMIViewerWindow(device_index, w, h, fps)
+               ├─► HDMICaptureManager.instance().start()
+               │   ├─► _open_capture() con timeout 3s
+               │   │   └─► Si falla → emit STATE_ERROR (no se cuelga)
+               │   └─► _reader_loop() en thread daemon
+               │       ├─► cap.read() con timeout por frame
+               │       ├─► Detecta "sin señal" (>2s sin frames)
+               │       └─► Emite frame_ready(QImage) al hilo UI
+               ├─► QLabel scaledContents muestra pixmaps
+               ├─► Footer: 🟢/🟡/🔴 estado en vivo
+               └─► Usuario puede arrastrar/redimensionar/duplicar click
+                   (doble click en barra → toggle fullscreen)
+
+Click X (o "Finalizar Reunión")
+   └─► HDMIViewerWindow.closeEvent()
+       ├─► audit.log_hdmi_session_end(duration)
+       ├─► Manager.stop() → join(2s timeout) → cap.release()
+       └─► Vuelve a MainWindow
+```
+
 ---
 
 ## 🔐 Panel de administración
@@ -346,6 +385,14 @@ Click "Exportar CSV"
 - **Exportar CSV** con reporte completo
 - Limpieza de datos antiguos
 
+### 6. 🖥️ Pantalla Externa
+- Switch para habilitar la card "Compartir pantalla" en la app
+- Combo con dispositivos de captura DirectShow detectados
+- Selector de resolución (1920×1080, 1280×720, 640×480)
+- Selector de FPS (15, 30, 60)
+- Botón "Probar 5 segundos" que abre el viewer temporalmente
+- Label de estado con conteo de dispositivos
+
 ---
 
 ## 📁 Estructura del proyecto
@@ -376,11 +423,12 @@ SOPantallasADI/
 │   ├── app_launcher.py              # Lanzar/cerrar apps
 │   ├── app_categories.py            # Categorías de apps
 │   ├── volume_manager.py            # Audio Windows
+│   ├── hdmi_capture.py              # Captura HDMI (OpenCV + DirectShow)
 │   └── icon_utils.py                # Extraer iconos de .exe
 │
 ├── ui/                              # Interfaz
 │   ├── main_window.py               # Pantalla principal
-│   ├── admin_panel.py               # Panel admin (5 tabs)
+│   ├── admin_panel.py               # Panel admin (6 tabs)
 │   ├── running_apps_dialog.py       # Apps abiertas
 │   ├── touch_dialogs.py             # Diálogos táctiles
 │   ├── screensaver.py               # Screensaver premium
@@ -388,6 +436,7 @@ SOPantallasADI/
 │   ├── screensaver_events.py        # Manager de eventos
 │   ├── screensaver_particles.py     # Partículas
 │   ├── screensaver_video.py         # Fondo video
+│   ├── hdmi_viewer_window.py        # Ventana flotante HDMI
 │   ├── theme_selector.py            # Selector de tema
 │   ├── animations.py                # Helpers de animación
 │   ├── admin_widgets/               # Widgets del admin
@@ -399,7 +448,8 @@ SOPantallasADI/
 │   │   ├── volume_control.py
 │   │   ├── app_grid.py
 │   │   ├── toast_notification.py
-│   │   └── notification_center.py
+│   │   ├── notification_center.py
+│   │   └── hdmi_input.py            # Card "Compartir pantalla"
 │   └── styles/themes/               # Temas QSS
 │       ├── dark.qss
 │       ├── light.qss
@@ -503,3 +553,36 @@ Proyecto interno para la gestión de salas de reuniones corporativas.
 ---
 
 **Desarrollado para la gestión eficiente de entornos colaborativos.**
+
+---
+
+## 📎 Anexo: Configuración HDMI
+
+`config.json` (creado al guardar desde Admin → Pantalla Externa):
+
+```json
+{
+  "hdmi_input": {
+    "enabled": true,
+    "device_index": 0,
+    "width": 1920,
+    "height": 1080,
+    "fps": 30
+  }
+}
+```
+
+**Verificación en la sala**:
+1. Conecta el cable HDMI al puerto de entrada de la pantalla
+2. En Windows, abre **Administrador de dispositivos** → busca en "Cámaras" o "Dispositivos de captura"
+3. Si aparece, el sistema lo detectará al pulsar "Refrescar" en Admin → Pantalla Externa
+4. Si no aparece, necesitas una **tarjeta capturadora HDMI-USB externa** (ej: AVerMedia, Elgato)
+
+**Solución de problemas**:
+
+| Problema | Causa | Solución |
+|----------|-------|----------|
+| Card "Compartir pantalla" no aparece | `hdmi_input.enabled = false` en config | Admin → Pantalla Externa → marcar checkbox |
+| "No se detectaron dispositivos" | Driver no instalado o pantalla no expone HDMI-in como captura | Verificar en Admin. de dispositivos de Windows |
+| Viewer se abre pero muestra "Sin señal" | Cable HDMI no conectado o portátil no enviando señal | Conectar portátil y verificar salida de video |
+| Viewer se cierra solo al cabo de un rato | Driver de captura inestable | Probar otra resolución/FPS o cambiar capturadora |
