@@ -34,7 +34,7 @@ QLabel#DateLabel {
 }
 
 QPushButton#AppButton {
-    background-color: #000000;
+    background-color: rgba(0, 0, 0, 0.7);
     border: 4px solid #ffff00;
     border-radius: 12px;
     font-size: 22px;
@@ -47,7 +47,7 @@ QPushButton#AppButton {
 }
 
 QPushButton#AppButton:hover {
-    background-color: #333333;
+    background-color: rgba(51, 51, 51, 0.85);
     border-color: #ffffff;
     color: #ffff00;
 }
@@ -86,7 +86,7 @@ QPushButton#AdminButton:pressed {
     color: #000000;
 }
 
-QPushButton#EndMeetingButton {
+QPushButton#ShutdownButton {
     background-color: #ff0000;
     color: #ffffff;
     border: 3px solid #ffffff;
@@ -96,7 +96,7 @@ QPushButton#EndMeetingButton {
     padding: 15px 30px;
 }
 
-QPushButton#EndMeetingButton:pressed {
+QPushButton#ShutdownButton:pressed {
     background-color: #cc0000;
     color: #ffff00;
 }

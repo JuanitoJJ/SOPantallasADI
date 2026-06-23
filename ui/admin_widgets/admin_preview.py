@@ -64,7 +64,7 @@ class AdminPreviewFrame(QFrame):
             apps_row.addWidget(btn)
         apps_row.addStretch()
 
-        end_btn = QPushButton("Finalizar")
+        end_btn = QPushButton("Apagar")
         end_btn.setStyleSheet(
             "QPushButton {"
             " background-color: #e74c3c; color: white; border: none;"

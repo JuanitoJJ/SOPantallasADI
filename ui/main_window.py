@@ -390,11 +390,11 @@ class MainWindow(QMainWindow):
 
         controls_layout.addSpacing(15)
 
-        self.end_meeting_btn = QPushButton("Finalizar Reunión")
-        self.end_meeting_btn.setObjectName("EndMeetingButton")
-        self.end_meeting_btn.setMinimumHeight(60)
-        self.end_meeting_btn.clicked.connect(self.end_meeting)
-        controls_layout.addWidget(self.end_meeting_btn)
+        self.shutdown_btn = QPushButton("Apagar Equipo")
+        self.shutdown_btn.setObjectName("ShutdownButton")
+        self.shutdown_btn.setMinimumHeight(60)
+        self.shutdown_btn.clicked.connect(self.shutdown_pc)
+        controls_layout.addWidget(self.shutdown_btn)
 
         left_panel.addLayout(controls_layout)
 
@@ -522,6 +522,22 @@ class MainWindow(QMainWindow):
 
                 if start_dt.date() == today:
                     mtg['_start_local'] = start_dt
+                    
+                    # Parsear también la hora de fin de la reunión
+                    try:
+                        end_raw = mtg['end']['dateTime'].split('.')[0]
+                        end_tz_name = mtg['end'].get('timeZone', '')
+                        end_naive = datetime.strptime(end_raw, "%Y-%m-%dT%H:%M:%S")
+                        try:
+                            from zoneinfo import ZoneInfo
+                            tz_end = ZoneInfo(end_tz_name) if end_tz_name else None
+                            end_dt = end_naive.replace(tzinfo=tz_end).astimezone() if tz_end else end_naive
+                        except Exception:
+                            end_dt = end_naive
+                        mtg['_end_local'] = end_dt
+                    except Exception:
+                        mtg['_end_local'] = None
+
                     meetings.append(mtg)
             except Exception as e:
                 logger.warning("Error procesando fecha de reunión: %s", e)
@@ -556,7 +572,21 @@ class MainWindow(QMainWindow):
                 if start_dt_local is None:
                     start_raw = mtg['start']['dateTime'].split('.')[0]
                     start_dt_local = datetime.strptime(start_raw, "%Y-%m-%dT%H:%M:%S")
-                time_label = QLabel(start_dt_local.strftime("%H:%M"))
+                
+                end_dt_local = mtg.get('_end_local')
+                if end_dt_local is None and 'end' in mtg:
+                    try:
+                        end_raw = mtg['end']['dateTime'].split('.')[0]
+                        end_dt_local = datetime.strptime(end_raw, "%Y-%m-%dT%H:%M:%S")
+                    except Exception:
+                        end_dt_local = None
+
+                if end_dt_local:
+                    time_text = f"{start_dt_local.strftime('%H:%M')} - {end_dt_local.strftime('%H:%M')}"
+                else:
+                    time_text = start_dt_local.strftime("%H:%M")
+                
+                time_label = QLabel(time_text)
                 time_label.setStyleSheet("color: #bdc3c7; font-size: 14px;")
             except Exception:
                 time_label = QLabel("Hora no disponible")
@@ -645,11 +675,11 @@ class MainWindow(QMainWindow):
             b.setMinimumSize(120, 50)
         msg.exec()
 
-    def end_meeting(self):
+    def shutdown_pc(self):
         dlg = TouchConfirmDialog(
-            title="Finalizar Reunión",
-            message="¿Confirmas que quieres finalizar la reunión?\nSe cerrarán todas las aplicaciones abiertas.",
-            confirm_text="Finalizar",
+            title="Apagar Equipo",
+            message="¿Confirmas que quieres apagar el equipo?",
+            confirm_text="Apagar",
             cancel_text="Cancelar",
             danger=True,
             parent=self,
@@ -657,19 +687,8 @@ class MainWindow(QMainWindow):
         if dlg.exec():
             close_all_launched_apps()
             self._close_hdmi_viewer()
-            info = TouchConfirmDialog(
-                title="Reunión finalizada",
-                message="Se han cerrado las aplicaciones.\nEl sistema está listo para la próxima reunión.",
-                confirm_text="Aceptar",
-                cancel_text="",
-                danger=False,
-                parent=self,
-            )
-            # Ocultar botón cancelar cuando es solo informativo
-            for btn in info.findChildren(QPushButton):
-                if btn.text() == "":
-                    btn.hide()
-            info.exec()
+            import subprocess
+            subprocess.Popen("shutdown -s -t 00", shell=True)
 
     def _open_hdmi_viewer(self):
         """Abre la ventana flotante del viewer HDMI."""

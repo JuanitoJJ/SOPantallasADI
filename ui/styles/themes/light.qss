@@ -33,8 +33,8 @@ QLabel#DateLabel {
 }
 
 QPushButton#AppButton {
-    background-color: #ffffff;
-    border: 2px solid #d6dbdf;
+    background-color: rgba(255, 255, 255, 0.45);
+    border: 2px solid rgba(0, 0, 0, 0.1);
     border-radius: 25px;
     font-size: 20px;
     font-weight: 600;
@@ -46,18 +46,18 @@ QPushButton#AppButton {
 }
 
 QPushButton#AppButton:hover {
-    background-color: #ecf0f1;
-    border-color: #1976d2;
+    background-color: rgba(236, 240, 241, 0.65);
+    border-color: rgba(25, 118, 210, 0.5);
 }
 
 QPushButton#AppButton:pressed {
-    background-color: #1976d2;
+    background-color: rgba(25, 118, 210, 0.85);
     border: 3px solid #1565c0;
     color: #ffffff;
 }
 
 QPushButton#AppButton[flash="true"] {
-    background-color: #1976d2;
+    background-color: rgba(25, 118, 210, 0.9);
     border: 3px solid #64b5f6;
     color: #ffffff;
 }
@@ -83,7 +83,7 @@ QPushButton#AdminButton:pressed {
     color: #1a1a1a;
 }
 
-QPushButton#EndMeetingButton {
+QPushButton#ShutdownButton {
     background-color: #d32f2f;
     color: white;
     border-radius: 15px;
@@ -92,7 +92,7 @@ QPushButton#EndMeetingButton {
     padding: 15px 30px;
 }
 
-QPushButton#EndMeetingButton:pressed {
+QPushButton#ShutdownButton:pressed {
     background-color: #b71c1c;
 }
 

@@ -536,7 +536,8 @@ class AdminPanelDialog(QDialog):
 
         self.theme_combo = QComboBox()
         self.theme_combo.setMinimumHeight(44)
-        for theme_id, label, _ in theme_manager.get_available_themes():
+        available_themes = theme_manager.get_available_themes()
+        for theme_id, label, _ in available_themes:
             self.theme_combo.addItem(label, theme_id)
         current = self.config_manager.get_theme()
         for i in range(self.theme_combo.count()):
@@ -544,11 +545,15 @@ class AdminPanelDialog(QDialog):
                 self.theme_combo.setCurrentIndex(i)
                 break
         self.theme_combo.currentIndexChanged.connect(self._on_theme_combo_changed)
+        if len(available_themes) <= 1:
+            self.theme_combo.setEnabled(False)
         row.addWidget(self.theme_combo, 1)
 
         preview_btn = QPushButton("👁 Vista Previa...")
         preview_btn.setMinimumHeight(44)
         preview_btn.clicked.connect(self._open_theme_selector)
+        if len(available_themes) <= 1:
+            preview_btn.setEnabled(False)
         row.addWidget(preview_btn)
 
         theme_layout.addLayout(row)

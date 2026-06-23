@@ -17,16 +17,6 @@ THEMES = {
         "file": "dark.qss",
         "description": "Fondo oscuro (#1a1a1a) con acentos azules",
     },
-    THEME_LIGHT: {
-        "label": "Claro",
-        "file": "light.qss",
-        "description": "Fondo claro (#f5f7fa) con acentos azules",
-    },
-    THEME_HIGH_CONTRAST: {
-        "label": "Alto Contraste",
-        "file": "high_contrast.qss",
-        "description": "Máximo contraste (#000000/#ffff00) para baja visión",
-    },
 }
 
 DEFAULT_THEME = THEME_DARK

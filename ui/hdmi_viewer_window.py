@@ -12,7 +12,7 @@ Características:
 """
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QSizePolicy, QGraphicsOpacityEffect)
-from PyQt6.QtCore import Qt, QPoint, QPropertyAnimation, QEasingCurve, pyqtSignal
+from PyQt6.QtCore import Qt, QPoint, QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer
 from PyQt6.QtGui import QPixmap, QCursor, QFont
 
 from core.logger import get_logger
@@ -62,6 +62,20 @@ class HDMIViewerWindow(QWidget):
         self._set_state(STATE_CONNECTING)
         self._manager.start()
         self._log_session_start()
+
+        # Maximizar automáticamente a los 5 segundos
+        QTimer.singleShot(5000, self._auto_maximize)
+
+    def _auto_maximize(self):
+        """Maximiza la ventana (modo fullscreen) automáticamente después de 5 segundos."""
+        try:
+            from PyQt6.sip import isdeleted
+            if isdeleted(self):
+                return
+        except ImportError:
+            pass
+        if self.isVisible() and not self._is_fullscreen:
+            self._toggle_fullscreen()
 
     def _build_ui(self):
         """Construye la UI: barra superior + video + footer."""

@@ -80,7 +80,7 @@ class ConfigManager:
 
     def set_theme(self, theme_id: str):
         """Cambia el tema y persiste en config."""
-        valid_themes = ["dark", "light", "high_contrast"]
+        valid_themes = ["dark"]
         if theme_id not in valid_themes:
             logger.warning("Tema inválido '%s', ignorando", theme_id)
             return False
