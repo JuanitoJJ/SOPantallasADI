@@ -161,13 +161,8 @@ class AppGrid(QWidget):
                 if a.get("category", DEFAULT_CATEGORY) == self._current_category
             ]
 
-        n = len(filtered)
-        if n <= 4:
-            max_cols = 2
-        elif n <= 9:
-            max_cols = 3
-        else:
-            max_cols = 4
+        # Al ser tarjetas de 110x110 px, permitimos hasta 5 columnas en horizontal
+        max_cols = 5
 
         row, col = 0, 0
         for idx, app in enumerate(filtered):

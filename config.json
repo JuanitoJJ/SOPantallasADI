@@ -11,6 +11,12 @@
             "path": "%LocalAppData%\\Microsoft\\WindowsApps\\ms-teams.exe",
             "icon": "assets/icons\\teams.png",
             "category": "Reuniones"
+        },
+        {
+            "name": "Anydesk",
+            "path": "C:\\Program Files (x86)\\AnyDesk-ad_d937c49d_msi\\AnyDesk-ad_d937c49d_msi.exe",
+            "icon": "assets/icons\\AnyDesk-ad_d937c49d_msi.png",
+            "category": "Sin categor\u00eda"
         }
     ],
     "corporate_name": "Sala 2 ADI",
@@ -19,7 +25,7 @@
     "tenant_id": "a4137140-573a-4c03-961c-b5eaee69aacc",
     "wallpaper_folder": "assets/wallpapers",
     "wallpaper_interval_seconds": 3600,
-    "room_email": "j.jarque@adigrupo.com",
+    "room_email": "sala.3terrassa@adigrupo.com",
     "client_secret": "S538Q~w_Dm3eJQgjzXqV0ENwVzMd5h5ZSGT2icFY",
     "theme": "dark",
     "hdmi_input": {
