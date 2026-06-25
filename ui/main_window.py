@@ -14,7 +14,6 @@ from core.logger import get_logger
 from core.notification_manager import notification_manager, NotificationLevel
 from core import audit
 from ui.admin_panel import AdminPanelDialog
-from ui.running_apps_dialog import RunningAppsDialog
 from ui.touch_dialogs import TouchConfirmDialog, TouchAdminLoginDialog
 from ui.widgets import apply_text_outline
 from ui.widgets.clock_widget import ClockWidget
@@ -379,14 +378,6 @@ class MainWindow(QMainWindow):
         self.share_screen_btn.clicked.connect(self._open_hdmi_viewer)
         self.share_screen_btn.setVisible(self.config_manager.is_hdmi_enabled())
         controls_layout.addWidget(self.share_screen_btn)
-
-        controls_layout.addSpacing(15)
-
-        self.running_apps_btn = QPushButton("Aplicaciones Abiertas")
-        self.running_apps_btn.setObjectName("RunningAppsButton")
-        self.running_apps_btn.setMinimumHeight(60)
-        self.running_apps_btn.clicked.connect(self.open_running_apps_panel)
-        controls_layout.addWidget(self.running_apps_btn)
 
         controls_layout.addSpacing(15)
 
@@ -768,10 +759,6 @@ class MainWindow(QMainWindow):
                     self.update_calendar()
 
             self.refresh_apps()
-
-    def open_running_apps_panel(self):
-        dialog = RunningAppsDialog(self)
-        dialog.exec()
 
     def keyPressEvent(self, a0):  # type: ignore[override]
         if a0 is not None and a0.key() == Qt.Key.Key_Escape:
