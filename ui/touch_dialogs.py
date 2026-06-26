@@ -1,8 +1,5 @@
 """
 touch_dialogs.py — Diálogos personalizados optimizados para pantalla táctil.
-
-Todos los botones tienen un mínimo de 120×56px y fuentes grandes para
-facilitar la interacción sin ratón en pantallas de kiosco corporativo.
 """
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -11,16 +8,10 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
 
+from core.theme_manager import theme_manager
 
-# ─────────────────────────────────────────────
-#  Diálogo de confirmación genérico
-# ─────────────────────────────────────────────
+
 class TouchConfirmDialog(QDialog):
-    """
-    Diálogo de confirmación con dos botones grandes táctiles.
-    Devuelve True si el usuario confirma, False si cancela.
-    """
-
     def __init__(self, title: str, message: str,
                  confirm_text: str = "Confirmar",
                  cancel_text: str = "Cancelar",
@@ -37,100 +28,103 @@ class TouchConfirmDialog(QDialog):
         self._build_ui(title, message, confirm_text, cancel_text, danger)
 
     def _build_ui(self, title, message, confirm_text, cancel_text, danger):
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #1e2a38;
-                border: 2px solid #34495e;
-                border-radius: 16px;
-            }
-        """)
+        t = theme_manager.current_tokens()
+        self.setStyleSheet(
+            f"QDialog {{ background-color: {t.surface_raised}; "
+            f"border: 2px solid {t.border_strong}; "
+            f"border-radius: {t.dialog_radius}px; }}"
+        )
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(36, 32, 36, 32)
-        layout.setSpacing(20)
+        layout.setContentsMargins(
+            t.space_7, t.space_6, t.space_7, t.space_6
+        )
+        layout.setSpacing(t.space_4)
 
-        # Título
         title_lbl = QLabel(title)
         title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_lbl.setStyleSheet(
-            "color: #ecf0f1; font-size: 22px; font-weight: bold;"
-        )
+        title_font = QFont(t.font_family_display)
+        title_font.setPointSizeF(t.type_lg * 0.75)
+        title_font.setBold(True)
+        title_lbl.setFont(title_font)
+        title_lbl.setStyleSheet(f"color: {t.text_primary}; background: transparent;")
         layout.addWidget(title_lbl)
 
-        # Separador
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: #34495e;")
+        sep.setStyleSheet(f"color: {t.border_subtle}; background: {t.border_subtle}; max-height: 1px;")
         layout.addWidget(sep)
 
-        # Mensaje
         msg_lbl = QLabel(message)
         msg_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         msg_lbl.setWordWrap(True)
+        msg_font = QFont(t.font_family_body)
+        msg_font.setPointSizeF(t.type_md * 0.75)
+        msg_lbl.setFont(msg_font)
         msg_lbl.setStyleSheet(
-            "color: #bdc3c7; font-size: 18px; padding: 8px 0;"
+            f"color: {t.text_secondary}; background: transparent; "
+            f"padding: {t.space_2}px 0;"
         )
         layout.addWidget(msg_lbl)
 
-        layout.addSpacing(8)
+        layout.addSpacing(t.space_2)
 
-        # Botones
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(16)
+        btn_layout.setSpacing(t.space_4)
 
         cancel_btn = QPushButton(cancel_text)
-        cancel_btn.setMinimumSize(140, 56)
-        cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2c3e50;
-                color: #bdc3c7;
-                border: 2px solid #34495e;
-                border-radius: 10px;
-                font-size: 18px;
-                font-weight: bold;
-            }
-            QPushButton:pressed {
-                background-color: #34495e;
-                color: #ecf0f1;
-            }
+        cancel_btn.setMinimumSize(160, 64)
+        cancel_cancel_font = QFont(t.font_family_body)
+        cancel_cancel_font.setPointSizeF(t.type_md * 0.75)
+        cancel_cancel_font.setBold(True)
+        cancel_btn.setFont(cancel_cancel_font)
+        cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {t.surface_overlay};
+                color: {t.text_secondary};
+                border: 2px solid {t.border_strong};
+                border-radius: {t.control_radius}px;
+            }}
+            QPushButton:pressed {{
+                background-color: {t.surface_raised};
+                color: {t.text_primary};
+            }}
         """)
         cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
 
-        confirm_color = "#c0392b" if danger else "#27ae60"
-        confirm_pressed = "#a93226" if danger else "#1e8449"
+        confirm_color = t.danger if danger else t.success
         confirm_btn = QPushButton(confirm_text)
-        confirm_btn.setMinimumSize(140, 56)
+        confirm_btn.setMinimumSize(160, 64)
+        confirm_font = QFont(t.font_family_body)
+        confirm_font.setPointSizeF(t.type_md * 0.75)
+        confirm_font.setBold(True)
+        confirm_btn.setFont(confirm_font)
         confirm_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {confirm_color};
-                color: white;
+                color: {t.text_on_accent};
                 border: none;
-                border-radius: 10px;
-                font-size: 18px;
-                font-weight: bold;
+                border-radius: {t.control_radius}px;
             }}
             QPushButton:pressed {{
-                background-color: {confirm_pressed};
+                opacity: 0.85;
             }}
         """)
         confirm_btn.clicked.connect(self.accept)
-
-        btn_layout.addWidget(cancel_btn)
         btn_layout.addWidget(confirm_btn)
+
         layout.addLayout(btn_layout)
 
 
-# ─────────────────────────────────────────────
-#  Numpad táctil reutilizable
-# ─────────────────────────────────────────────
 _NUMPAD_BTN_STYLE = """
     QPushButton {{
         background-color: {bg};
         color: {fg};
-        border: 2px solid #34495e;
-        border-radius: 10px;
-        font-size: 22px;
-        font-weight: bold;
+        border: 2px solid {border};
+        border-radius: {radius}px;
+        font-size: {fs}px;
+        font-weight: {fw};
         min-width: 72px;
         min-height: 72px;
     }}
@@ -138,30 +132,42 @@ _NUMPAD_BTN_STYLE = """
         background-color: {bg_pressed};
     }}
     QPushButton:disabled {{
-        background-color: #1a252f;
-        color: #4a5568;
-        border-color: #2c3e50;
+        background-color: {disabled_bg};
+        color: {disabled_fg};
+        border-color: {disabled_border};
     }}
 """
 
-_KEY_STYLE     = _NUMPAD_BTN_STYLE.format(bg="#2c3e50", fg="#ecf0f1", bg_pressed="#3d566e")
-_DELETE_STYLE  = _NUMPAD_BTN_STYLE.format(bg="#4a2020", fg="#e74c3c", bg_pressed="#6b2c2c")
-_ENTER_STYLE   = _NUMPAD_BTN_STYLE.format(bg="#1a4a2e", fg="#27ae60", bg_pressed="#1e6b3e")
+
+def _key_style(t, kind: str) -> str:
+    if kind == "key":
+        return _NUMPAD_BTN_STYLE.format(
+            bg=t.surface_overlay, fg=t.text_primary, border=t.border_strong,
+            radius=t.control_radius, fs=int(t.type_xl * 0.75), fw=t.weight_bold,
+            bg_pressed=t.surface_raised,
+            disabled_bg=t.surface_base, disabled_fg=t.text_muted,
+            disabled_border=t.border_subtle,
+        )
+    if kind == "delete":
+        return _NUMPAD_BTN_STYLE.format(
+            bg=t.danger, fg=t.text_on_accent, border=t.danger,
+            radius=t.control_radius, fs=int(t.type_xl * 0.75), fw=t.weight_bold,
+            bg_pressed=t.accent_pressed,
+            disabled_bg=t.surface_base, disabled_fg=t.text_muted,
+            disabled_border=t.border_subtle,
+        )
+    if kind == "enter":
+        return _NUMPAD_BTN_STYLE.format(
+            bg=t.success, fg=t.text_on_accent, border=t.success,
+            radius=t.control_radius, fs=int(t.type_xl * 0.75), fw=t.weight_bold,
+            bg_pressed=t.accent_pressed,
+            disabled_bg=t.surface_base, disabled_fg=t.text_muted,
+            disabled_border=t.border_subtle,
+        )
+    return ""
 
 
 class TouchNumpad(QWidget):
-    """
-    Numpad táctil 3×4 (dígitos 1-9, *, 0, #).
-    Escribe en un QLineEdit de solo lectura asociado.
-    Emite una señal 'entered' al pulsar Intro/Aceptar (botón verde).
-
-    Layout:
-        7  8  9
-        4  5  6
-        1  2  3
-        ⌫  0  ✓
-    """
-
     def __init__(self, line_edit: QLineEdit, max_length: int = 20, parent=None):
         super().__init__(parent)
         self._input = line_edit
@@ -169,8 +175,9 @@ class TouchNumpad(QWidget):
         self._build()
 
     def _build(self):
+        t = theme_manager.current_tokens()
         grid = QGridLayout(self)
-        grid.setSpacing(8)
+        grid.setSpacing(t.space_2)
         grid.setContentsMargins(0, 0, 0, 0)
 
         keys = [
@@ -183,14 +190,14 @@ class TouchNumpad(QWidget):
         for label, row, col in keys:
             btn = QPushButton(label)
             if label == "⌫":
-                btn.setStyleSheet(_DELETE_STYLE)
+                btn.setStyleSheet(_key_style(t, "delete"))
                 btn.clicked.connect(self._delete)
             elif label == "✓":
-                btn.setStyleSheet(_ENTER_STYLE)
+                btn.setStyleSheet(_key_style(t, "enter"))
                 btn.clicked.connect(self._confirm)
                 self._confirm_btn = btn
             else:
-                btn.setStyleSheet(_KEY_STYLE)
+                btn.setStyleSheet(_key_style(t, "key"))
                 btn.clicked.connect(self._make_digit_handler(label))
             grid.addWidget(btn, row, col)
 
@@ -205,7 +212,6 @@ class TouchNumpad(QWidget):
         self._input.setText(self._input.text()[:-1])
 
     def _confirm(self):
-        # El botón ✓ activa el returnPressed del QLineEdit
         self._input.returnPressed.emit()
 
     def set_enabled(self, enabled: bool):
@@ -213,17 +219,14 @@ class TouchNumpad(QWidget):
             btn.setEnabled(enabled)
 
 
-# ─────────────────────────────────────────────
-#  Teclado Alfanumérico táctil
-# ─────────────────────────────────────────────
 _SHIFT_STYLE = """
     QPushButton {{
         background-color: {bg};
         color: {fg};
-        border: 2px solid #34495e;
-        border-radius: 10px;
-        font-size: 22px;
-        font-weight: bold;
+        border: 2px solid {border};
+        border-radius: {radius}px;
+        font-size: {fs}px;
+        font-weight: {fw};
         min-width: 72px;
         min-height: 72px;
     }}
@@ -232,37 +235,29 @@ _SHIFT_STYLE = """
     }}
     QPushButton:checked {{
         background-color: {bg_active};
-        color: white;
-        border-color: #3498db;
+        color: {fg_active};
+        border-color: {border_active};
     }}
 """
 
-_SHIFT_OFF_STYLE = _SHIFT_STYLE.format(bg="#2c3e50", fg="#ecf0f1", bg_pressed="#3d566e", bg_active="#3498db")
-
 
 class TouchAlphanumericKeyboard(QWidget):
-    """
-    Teclado alfanumérico táctil.
-    Escribe en un QLineEdit asociado.
-    Soporta mayúsculas/minúsculas mediante tecla Shift.
-    """
-
     def __init__(self, line_edit: QLineEdit, max_length: int = 32, parent=None):
         super().__init__(parent)
         self._input = line_edit
         self._max_length = max_length
         self._is_caps = True
-        self._letter_buttons = {}  # key_lower -> QPushButton (para actualizar label)
+        self._letter_buttons = {}
         self._build()
 
     def _build(self):
+        t = theme_manager.current_tokens()
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setSpacing(6)
+        self.main_layout.setSpacing(t.space_2)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Filas del teclado
-        # Se guarda la versión en minúsculas; al pulsar Shift se actualizan
-        # los labels para reflejar mayúsculas o minúsculas.
+        key_style = _key_style(t, "key")
+
         rows = [
             [("1", "1"), ("2", "2"), ("3", "3"), ("4", "4"), ("5", "5"),
              ("6", "6"), ("7", "7"), ("8", "8"), ("9", "9"), ("0", "0")],
@@ -276,45 +271,52 @@ class TouchAlphanumericKeyboard(QWidget):
 
         for row_keys in rows:
             row_layout = QHBoxLayout()
-            row_layout.setSpacing(6)
+            row_layout.setSpacing(t.space_2)
             for upper, lower in row_keys:
                 btn = QPushButton(upper)
-                btn.setStyleSheet(_KEY_STYLE)
-                # Guardamos referencia para poder actualizar el label al pulsar Shift
+                btn.setStyleSheet(key_style)
                 self._letter_buttons[lower] = btn
                 btn.clicked.connect(self._make_key_handler(upper, lower))
                 row_layout.addWidget(btn)
             self.main_layout.addLayout(row_layout)
 
-        # Fila inferior: Shift | ⌫ | ESPACIO | ✓
         bottom_layout = QHBoxLayout()
-        bottom_layout.setSpacing(6)
+        bottom_layout.setSpacing(t.space_2)
+
+        shift_style = _SHIFT_STYLE.format(
+            bg=t.surface_overlay, fg=t.text_primary,
+            border=t.border_strong, radius=t.control_radius,
+            fs=int(t.type_xl * 0.75), fw=t.weight_bold,
+            bg_pressed=t.surface_raised,
+            bg_active=t.accent, fg_active=t.text_on_accent,
+            border_active=t.accent_pressed,
+        )
 
         self._shift_btn = QPushButton("⇧")
-        self._shift_btn.setStyleSheet(_SHIFT_OFF_STYLE)
-        self._shift_btn.setMinimumWidth(90)
+        self._shift_btn.setStyleSheet(shift_style)
+        self._shift_btn.setMinimumWidth(96)
         self._shift_btn.setCheckable(True)
-        self._shift_btn.setChecked(True)  # Empieza en mayúsculas
+        self._shift_btn.setChecked(True)
         self._shift_btn.setToolTip("Cambiar mayúsculas / minúsculas")
         self._shift_btn.clicked.connect(self._toggle_caps)
         bottom_layout.addWidget(self._shift_btn)
 
         del_btn = QPushButton("⌫")
-        del_btn.setStyleSheet(_DELETE_STYLE)
-        del_btn.setMinimumWidth(100)
+        del_btn.setStyleSheet(_key_style(t, "delete"))
+        del_btn.setMinimumWidth(110)
         del_btn.setToolTip("Borrar último carácter")
         del_btn.clicked.connect(self._delete)
         bottom_layout.addWidget(del_btn)
 
         space_btn = QPushButton("ESPACIO")
-        space_btn.setStyleSheet(_KEY_STYLE)
-        space_btn.setMinimumWidth(200)
+        space_btn.setStyleSheet(key_style)
+        space_btn.setMinimumWidth(220)
         space_btn.clicked.connect(lambda: self._type(" "))
         bottom_layout.addWidget(space_btn)
 
         enter_btn = QPushButton("✓")
-        enter_btn.setStyleSheet(_ENTER_STYLE)
-        enter_btn.setMinimumWidth(100)
+        enter_btn.setStyleSheet(_key_style(t, "enter"))
+        enter_btn.setMinimumWidth(110)
         enter_btn.setToolTip("Aceptar")
         enter_btn.clicked.connect(self._confirm)
         bottom_layout.addWidget(enter_btn)
@@ -323,7 +325,6 @@ class TouchAlphanumericKeyboard(QWidget):
 
     def _toggle_caps(self):
         self._is_caps = not self._is_caps
-        # Actualizar el texto de todos los botones de letras
         for lower, btn in self._letter_buttons.items():
             btn.setText(lower.upper() if self._is_caps else lower)
 
@@ -346,16 +347,7 @@ class TouchAlphanumericKeyboard(QWidget):
             btn.setEnabled(enabled)
 
 
-# ─────────────────────────────────────────────
-#  Diálogo de login Admin táctil
-# ─────────────────────────────────────────────
 class TouchAdminLoginDialog(QDialog):
-    """
-    Diálogo de login de administrador optimizado para táctil.
-    - Campo de contraseña de solo lectura rellenable con el teclado alfanumérico
-    - Teclado físico también funciona (para uso en escritorio)
-    - Contador de intentos fallidos con bloqueo temporal de 60s
-    """
     MAX_ATTEMPTS = 3
     LOCKOUT_SECONDS = 60
 
@@ -370,94 +362,100 @@ class TouchAdminLoginDialog(QDialog):
             Qt.WindowType.FramelessWindowHint
         )
         self.setModal(True)
-        self.setMinimumWidth(800) # Más ancho para el teclado alfanumérico
+        self.setMinimumWidth(820)
         self._build_ui()
 
     def _build_ui(self):
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #1e2a38;
-                border: 2px solid #34495e;
-                border-radius: 16px;
-            }
-        """)
+        t = theme_manager.current_tokens()
+        self.setStyleSheet(
+            f"QDialog {{ background-color: {t.surface_raised}; "
+            f"border: 2px solid {t.border_strong}; "
+            f"border-radius: {t.dialog_radius}px; }}"
+        )
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(36, 32, 36, 32)
-        layout.setSpacing(14)
+        layout.setContentsMargins(
+            t.space_7, t.space_6, t.space_7, t.space_6
+        )
+        layout.setSpacing(t.space_3)
 
-        # ── Título ──────────────────────────────────────────────────────
         title = QLabel("Acceso Administrador")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet(
-            "color: #ecf0f1; font-size: 22px; font-weight: bold;"
-        )
+        title_font = QFont(t.font_family_display)
+        title_font.setPointSizeF(t.type_lg * 0.75)
+        title_font.setBold(True)
+        title.setFont(title_font)
+        title.setStyleSheet(f"color: {t.text_primary}; background: transparent;")
         layout.addWidget(title)
 
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: #34495e;")
+        sep.setStyleSheet(f"color: {t.border_subtle}; background: {t.border_subtle}; max-height: 1px;")
         layout.addWidget(sep)
 
-        # ── Campo contraseña ─────────────────────────────────────────────
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.setMinimumHeight(58)
+        self.password_input.setMinimumHeight(60)
         self.password_input.setPlaceholderText("Introduce la contraseña")
         self.password_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.password_input.setStyleSheet("""
-            QLineEdit {
-                background-color: #2c3e50;
-                color: #ecf0f1;
-                border: 2px solid #34495e;
-                border-radius: 8px;
-                font-size: 26px;
-                padding: 8px 14px;
+        pw_font = QFont(t.font_family_mono)
+        pw_font.setPointSizeF(t.type_2xl * 0.75)
+        pw_font.setBold(True)
+        self.password_input.setFont(pw_font)
+        self.password_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {t.surface_overlay};
+                color: {t.text_primary};
+                border: 2px solid {t.border_strong};
+                border-radius: {t.control_radius}px;
+                padding: {t.space_2}px {t.space_3}px;
                 letter-spacing: 6px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-            QLineEdit:disabled {
-                background-color: #1a252f;
-                color: #4a5568;
-            }
+            }}
+            QLineEdit:focus {{
+                border-color: {t.border_focus};
+            }}
+            QLineEdit:disabled {{
+                background-color: {t.surface_base};
+                color: {t.text_muted};
+            }}
         """)
         self.password_input.returnPressed.connect(self._check_password)
         layout.addWidget(self.password_input)
 
-        # ── Mensaje de estado ────────────────────────────────────────────
         self.status_lbl = QLabel("")
         self.status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_font = QFont(t.font_family_body)
+        status_font.setPointSizeF(t.type_sm * 0.75)
+        status_font.setBold(True)
+        self.status_lbl.setFont(status_font)
         self.status_lbl.setStyleSheet(
-            "color: #e74c3c; font-size: 14px; min-height: 20px;"
+            f"color: {t.danger}; background: transparent; min-height: 20px;"
         )
         layout.addWidget(self.status_lbl)
 
-        # ── Teclado Alfanumérico táctil ──────────────────────────────────
         self.keyboard = TouchAlphanumericKeyboard(self.password_input, max_length=32)
         layout.addWidget(self.keyboard)
 
-        layout.addSpacing(6)
+        layout.addSpacing(t.space_2)
 
-        # ── Botón Cancelar ───────────────────────────────────────────────
         cancel_btn = QPushButton("Cancelar")
-        cancel_btn.setMinimumHeight(52)
-        cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2c3e50;
-                color: #bdc3c7;
-                border: 2px solid #34495e;
-                border-radius: 10px;
-                font-size: 17px;
-                font-weight: bold;
-            }
-            QPushButton:pressed { background-color: #34495e; }
+        cancel_btn.setMinimumHeight(56)
+        cancel_font = QFont(t.font_family_body)
+        cancel_font.setPointSizeF(t.type_md * 0.75)
+        cancel_font.setBold(True)
+        cancel_btn.setFont(cancel_font)
+        cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {t.surface_overlay};
+                color: {t.text_secondary};
+                border: 2px solid {t.border_strong};
+                border-radius: {t.control_radius}px;
+            }}
+            QPushButton:pressed {{ background-color: {t.surface_raised}; }}
         """)
         cancel_btn.clicked.connect(self.reject)
         layout.addWidget(cancel_btn)
 
-    # ── Validación ──────────────────────────────────────────────────────
     def _check_password(self):
         if self._locked:
             return
@@ -488,7 +486,7 @@ class TouchAdminLoginDialog(QDialog):
 
     def _tick_lockout(self):
         self.status_lbl.setText(
-            f"Demasiados intentos. Espera {self._countdown}s..."
+            f"Demasiados intentos. Espera {self._countdown}s…"
         )
         self._countdown -= 1
         if self._countdown < 0:

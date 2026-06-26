@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+from PyQt6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QListWidget, QListWidgetItem, QFileDialog,
                              QLineEdit, QFormLayout, QMessageBox, QCheckBox,
                              QTabWidget, QWidget, QFrame, QComboBox, QScrollArea,
@@ -19,244 +19,6 @@ from ui.admin_widgets.usage_dashboard import UsageDashboardWidget
 
 
 logger = get_logger("ui.admin_panel")
-
-
-ADMIN_TOUCH_QSS = """
-QDialog {
-    background-color: #1e2a38;
-}
-
-QDialog QLabel {
-    color: #ecf0f1;
-    background: transparent;
-}
-
-QDialog QLabel#SectionTitle {
-    color: #3498db;
-    font-size: 16px;
-    font-weight: bold;
-    margin-bottom: 6px;
-}
-
-QDialog QLabel#HelpText {
-    color: #95a5a6;
-    font-size: 12px;
-    font-style: italic;
-}
-
-QTabWidget::pane {
-    border: 1px solid #34495e;
-    background: #1e2a38;
-    border-radius: 8px;
-}
-
-QTabBar::tab {
-    background: #2c3e50;
-    color: #bdc3c7;
-    padding: 12px 24px;
-    border: 1px solid #34495e;
-    border-bottom: none;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-    margin-right: 4px;
-    font-size: 13px;
-    font-weight: 600;
-    min-width: 110px;
-}
-
-QTabBar::tab:selected {
-    background: #3498db;
-    color: white;
-}
-
-QTabBar::tab:hover:!selected {
-    background: #34495e;
-    color: #ecf0f1;
-}
-
-QPushButton {
-    background-color: #34495e;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 18px;
-    font-size: 14px;
-    font-weight: 600;
-    min-height: 20px;
-}
-
-QPushButton:hover {
-    background-color: #3d566e;
-}
-
-QPushButton:pressed {
-    background-color: #2c3e50;
-}
-
-QPushButton#PrimaryButton {
-    background-color: #3498db;
-    color: white;
-}
-
-QPushButton#PrimaryButton:hover {
-    background-color: #2980b9;
-}
-
-QPushButton#PrimaryButton:pressed {
-    background-color: #1f6391;
-}
-
-QPushButton#DangerButton {
-    background-color: #e74c3c;
-    color: white;
-}
-
-QPushButton#DangerButton:hover {
-    background-color: #c0392b;
-}
-
-QPushButton#DangerButton:pressed {
-    background-color: #a93226;
-}
-
-QPushButton#SuccessButton {
-    background-color: #27ae60;
-    color: white;
-}
-
-QPushButton#SuccessButton:hover {
-    background-color: #229954;
-}
-
-QLineEdit {
-    background-color: #2c3e50;
-    color: #ecf0f1;
-    border: 2px solid #34495e;
-    border-radius: 6px;
-    padding: 10px;
-    font-size: 14px;
-    selection-background-color: #3498db;
-}
-
-QLineEdit:focus {
-    border-color: #3498db;
-}
-
-QSpinBox {
-    background-color: #2c3e50;
-    color: #ecf0f1;
-    border: 2px solid #34495e;
-    border-radius: 6px;
-    padding: 6px 8px;
-    font-size: 14px;
-    min-height: 28px;
-}
-
-QSpinBox:focus {
-    border-color: #3498db;
-}
-
-QCheckBox {
-    color: #ecf0f1;
-    font-size: 14px;
-    spacing: 8px;
-}
-
-QCheckBox::indicator {
-    width: 22px;
-    height: 22px;
-    border: 2px solid #34495e;
-    border-radius: 4px;
-    background-color: #2c3e50;
-}
-
-QCheckBox::indicator:hover {
-    border-color: #3498db;
-}
-
-QCheckBox::indicator:checked {
-    background-color: #3498db;
-    border-color: #3498db;
-}
-
-QListWidget {
-    background-color: #2c3e50;
-    color: #ecf0f1;
-    border: 1px solid #34495e;
-    border-radius: 6px;
-    padding: 4px;
-    font-size: 14px;
-}
-
-QListWidget::item {
-    padding: 10px 8px;
-    border-radius: 4px;
-    margin: 2px 0;
-}
-
-QListWidget::item:selected {
-    background-color: #3498db;
-    color: white;
-}
-
-QListWidget::item:hover:!selected {
-    background-color: #34495e;
-}
-
-QComboBox {
-    background-color: #2c3e50;
-    color: #ecf0f1;
-    border: 2px solid #34495e;
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 14px;
-    min-height: 28px;
-}
-
-QComboBox:hover {
-    border-color: #3498db;
-}
-
-QComboBox::drop-down {
-    border: none;
-    width: 30px;
-}
-
-QComboBox QAbstractItemView {
-    background-color: #2c3e50;
-    color: #ecf0f1;
-    border: 1px solid #34495e;
-    selection-background-color: #3498db;
-}
-
-QFrame#Section {
-    background-color: #2c3e50;
-    border-radius: 8px;
-    padding: 12px;
-}
-
-QScrollBar:vertical {
-    background: #1e2a38;
-    width: 12px;
-    border-radius: 6px;
-}
-
-QScrollBar::handle:vertical {
-    background: #34495e;
-    border-radius: 6px;
-    min-height: 30px;
-}
-
-QScrollBar::handle:vertical:hover {
-    background: #3d566e;
-}
-
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-    border: none;
-    background: none;
-    height: 0;
-}
-"""
 
 
 class CalendarAuthWorker(QThread):
@@ -302,8 +64,8 @@ def make_section(title: str, parent_layout, help_text: str = "") -> QFrame:
 def make_field(label_text: str, widget: QWidget) -> QHBoxLayout:
     row = QHBoxLayout()
     label = QLabel(label_text)
+    label.setObjectName("FieldLabel")
     label.setMinimumWidth(160)
-    label.setStyleSheet("font-size: 14px;")
     row.addWidget(label)
     row.addWidget(widget, 1)
     return row
@@ -314,7 +76,7 @@ class AdminPanelDialog(QDialog):
         super().__init__(parent)
         self.config_manager = config_manager
         self.calendar_manager = calendar_manager
-        self.setStyleSheet(ADMIN_TOUCH_QSS)
+        self.tokens = theme_manager.current_tokens()
         self.init_ui()
         self._update_auth_status_label()
         self._start_preview_clock()
@@ -324,82 +86,96 @@ class AdminPanelDialog(QDialog):
         self._preview_timer.timeout.connect(lambda: self.preview.update_time() if hasattr(self, 'preview') else None)
         self._preview_timer.start(1000)
 
+    def _fit_to_screen(self):
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            self.resize(960, 720)
+            self.setMinimumSize(720, 540)
+            return
+        avail = screen.availableGeometry()
+        if avail.width() < 720 or avail.height() < 540:
+            self.resize(avail.width(), avail.height())
+            self.setMinimumSize(avail.width(), avail.height())
+            return
+        target_w = max(720, min(int(avail.width() * 0.85), 1200))
+        target_h = max(540, min(int(avail.height() * 0.88), 900))
+        self.resize(target_w, target_h)
+        self.setMinimumSize(int(target_w * 0.7), int(target_h * 0.7))
+        self.setMaximumSize(avail.width(), avail.height())
+        x = avail.x() + (avail.width() - target_w) // 2
+        y = avail.y() + (avail.height() - target_h) // 2
+        self.move(x, y)
+
     def init_ui(self):
         self.setWindowTitle("Panel de Control — Administrador")
-        self.resize(960, 720)
+        self._fit_to_screen()
+        t = self.tokens
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Header
         header = QFrame()
-        header.setStyleSheet(
-            "QFrame { background-color: #2c3e50; padding: 16px; border-bottom: 2px solid #3498db; }"
-        )
+        header.setObjectName("AdminHeader")
         header_layout = QHBoxLayout(header)
-        title = QLabel("⚙ Panel de Administración")
-        title_font = QFont()
-        title_font.setPointSize(18)
-        title_font.setBold(True)
-        title.setFont(title_font)
-        title.setStyleSheet("color: white; background: transparent;")
+        title = QLabel("⚙  Panel de Administración")
+        title.setObjectName("AdminHeaderTitle")
         header_layout.addWidget(title)
         header_layout.addStretch()
         main_layout.addWidget(header)
 
-        # Tabs
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("QTabWidget { padding: 12px; background: #1e2a38; }")
         main_layout.addWidget(self.tabs, 1)
 
-        # Preview
         self.preview = AdminPreviewFrame()
+        self.preview.setObjectName("AdminPreviewFrame")
         self.preview.update_corporate_name(
             self.config_manager.config.get("corporate_name", "")
         )
         self.preview.update_time()
 
+        self.tabs.setUsesScrollButtons(True)
+        self.tabs.setElideMode(Qt.TextElideMode.ElideRight)
+
         self.apps_tab = QWidget()
         self.setup_apps_tab()
-        self.tabs.addTab(self.apps_tab, "  📦 Aplicaciones  ")
+        self.tabs.addTab(self.apps_tab, "📦 Aplicaciones")
 
         self.calendar_tab = QWidget()
         self.setup_calendar_tab()
-        self.tabs.addTab(self.calendar_tab, "  📅 Calendario  ")
+        self.tabs.addTab(self.calendar_tab, "📅 Calendario")
 
         self.theme_tab = QWidget()
         self.setup_theme_tab()
-        self.tabs.addTab(self.theme_tab, "  🎨 Apariencia  ")
+        self.tabs.addTab(self.theme_tab, "🎨 Apariencia")
 
         self.general_tab = QWidget()
         self.setup_general_tab()
-        self.tabs.addTab(self.general_tab, "  ⚙ General  ")
+        self.tabs.addTab(self.general_tab, "⚙ General")
 
         self.audit_tab = QWidget()
         self.setup_audit_tab()
-        self.tabs.addTab(self.audit_tab, "  📊 Auditoría  ")
+        self.tabs.addTab(self.audit_tab, "📊 Auditoría")
 
         self.hdmi_tab = QWidget()
         self.setup_hdmi_tab()
-        self.tabs.addTab(self.hdmi_tab, "  🖥️ Pantalla Externa  ")
+        self.tabs.addTab(self.hdmi_tab, "🖥 Pantalla externa")
 
-        # Footer
         footer = QFrame()
-        footer.setStyleSheet("QFrame { background-color: #2c3e50; padding: 12px; border-top: 1px solid #34495e; }")
+        footer.setObjectName("AdminFooter")
         footer_layout = QHBoxLayout(footer)
 
-        self.exit_app_btn = QPushButton("⏻ Cerrar Kiosco y Volver a Windows")
+        self.exit_app_btn = QPushButton("⏻  Cerrar Kiosco y Volver a Windows")
         self.exit_app_btn.setObjectName("DangerButton")
-        self.exit_app_btn.setMinimumHeight(48)
+        self.exit_app_btn.setMinimumHeight(t.button_min_height)
         self.exit_app_btn.clicked.connect(self.exit_kiosk)
         footer_layout.addWidget(self.exit_app_btn)
 
         footer_layout.addStretch()
 
-        self.close_btn = QPushButton("✓ Cerrar Panel")
+        self.close_btn = QPushButton("✓  Cerrar Panel")
         self.close_btn.setObjectName("PrimaryButton")
-        self.close_btn.setMinimumHeight(48)
+        self.close_btn.setMinimumHeight(t.button_min_height)
         self.close_btn.setMinimumWidth(160)
         self.close_btn.clicked.connect(self.accept)
         footer_layout.addWidget(self.close_btn)
@@ -531,7 +307,8 @@ class AdminPanelDialog(QDialog):
 
         row = QHBoxLayout()
         lbl = QLabel("Tema actual:")
-        lbl.setStyleSheet("font-size: 14px; min-width: 120px;")
+        lbl.setObjectName("FieldLabel")
+        lbl.setMinimumWidth(120)
         row.addWidget(lbl)
 
         self.theme_combo = QComboBox()
@@ -558,7 +335,7 @@ class AdminPanelDialog(QDialog):
 
         theme_layout.addLayout(row)
         self.theme_status = QLabel("")
-        self.theme_status.setStyleSheet("color: #95a5a6; font-size: 12px; font-style: italic;")
+        self.theme_status.setObjectName("HelpText")
         self.theme_status.setWordWrap(True)
         theme_layout.addWidget(self.theme_status)
         self._update_theme_status(current)
@@ -593,7 +370,8 @@ class AdminPanelDialog(QDialog):
 
         interval_row = QHBoxLayout()
         interval_lbl = QLabel("Intervalo (segundos):")
-        interval_lbl.setStyleSheet("font-size: 14px; min-width: 160px;")
+        interval_lbl.setObjectName("FieldLabel")
+        interval_lbl.setMinimumWidth(160)
         interval_row.addWidget(interval_lbl)
         self.wallpaper_interval_input = QSpinBox()
         self.wallpaper_interval_input.setRange(5, 3600)
@@ -606,7 +384,7 @@ class AdminPanelDialog(QDialog):
         wp_layout.addLayout(interval_row)
 
         self.wp_count_label = QLabel("")
-        self.wp_count_label.setStyleSheet("color: #95a5a6; font-size: 12px;")
+        self.wp_count_label.setObjectName("HelpText")
         wp_layout.addWidget(self.wp_count_label)
         self._refresh_wp_count()
 
@@ -629,7 +407,7 @@ class AdminPanelDialog(QDialog):
         folder = self.wallpaper_folder_input.text()
         if not os.path.exists(folder):
             self.wp_count_label.setText("⚠ La carpeta no existe")
-            self.wp_count_label.setStyleSheet("color: #e67e22; font-size: 12px;")
+            self.wp_count_label.setObjectName("StatusWarn")
             return
         try:
             files = [
@@ -637,10 +415,11 @@ class AdminPanelDialog(QDialog):
                 if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.webp'))
             ]
             self.wp_count_label.setText(f"✓ {len(files)} fondo(s) disponible(s)")
-            self.wp_count_label.setStyleSheet("color: #27ae60; font-size: 12px;")
+            self.wp_count_label.setObjectName("StatusOk")
         except Exception as exc:
             logger.warning("Error contando wallpapers: %s", exc)
             self.wp_count_label.setText(f"Error: {exc}")
+            self.wp_count_label.setObjectName("StatusError")
 
     def _on_theme_combo_changed(self, index: int):
         theme_id = self.theme_combo.itemData(index)
@@ -845,7 +624,7 @@ class AdminPanelDialog(QDialog):
 
         self.hdmi_status_label = QLabel("")
         self.hdmi_status_label.setWordWrap(True)
-        self.hdmi_status_label.setStyleSheet("font-size: 14px;")
+        self.hdmi_status_label.setObjectName("FieldLabel")
         status_layout.addWidget(self.hdmi_status_label)
 
         refresh_btn = QPushButton("🔄 Refrescar lista de dispositivos")
@@ -869,8 +648,8 @@ class AdminPanelDialog(QDialog):
         # Dispositivo
         dev_row = QHBoxLayout()
         dev_lbl = QLabel("Dispositivo:")
+        dev_lbl.setObjectName("FieldLabel")
         dev_lbl.setMinimumWidth(160)
-        dev_lbl.setStyleSheet("font-size: 14px;")
         dev_row.addWidget(dev_lbl)
         self.hdmi_device_combo = QComboBox()
         self.hdmi_device_combo.setMinimumHeight(40)
@@ -881,8 +660,8 @@ class AdminPanelDialog(QDialog):
         # Resolución
         res_row = QHBoxLayout()
         res_lbl = QLabel("Resolución:")
+        res_lbl.setObjectName("FieldLabel")
         res_lbl.setMinimumWidth(160)
-        res_lbl.setStyleSheet("font-size: 14px;")
         res_row.addWidget(res_lbl)
         self.hdmi_resolution_combo = QComboBox()
         self.hdmi_resolution_combo.setMinimumHeight(40)
@@ -901,8 +680,8 @@ class AdminPanelDialog(QDialog):
         # FPS
         fps_row = QHBoxLayout()
         fps_lbl = QLabel("FPS:")
+        fps_lbl.setObjectName("FieldLabel")
         fps_lbl.setMinimumWidth(160)
-        fps_lbl.setStyleSheet("font-size: 14px;")
         fps_row.addWidget(fps_lbl)
         self.hdmi_fps_combo = QComboBox()
         self.hdmi_fps_combo.setMinimumHeight(40)
@@ -953,7 +732,7 @@ class AdminPanelDialog(QDialog):
             "una tarjeta capturadora USB externa"
         )
         help_label.setWordWrap(True)
-        help_label.setStyleSheet("color: #95a5a6; font-size: 13px; line-height: 1.5;")
+        help_label.setObjectName("HelpText")
         help_layout.addWidget(help_label)
 
         layout.addStretch()
@@ -972,9 +751,7 @@ class AdminPanelDialog(QDialog):
 
             if not HDMICaptureManager.is_available():
                 self.hdmi_status_label.setText("✕ OpenCV no está instalado")
-                self.hdmi_status_label.setStyleSheet(
-                    "color: #e74c3c; font-size: 14px; font-weight: bold;"
-                )
+                self.hdmi_status_label.setObjectName("StatusError")
                 self.hdmi_device_combo.clear()
                 return
 
@@ -987,13 +764,10 @@ class AdminPanelDialog(QDialog):
                     "🟡 No se detectaron dispositivos de captura.\n"
                     "Verifica que el driver esté instalado y pulsa 'Refrescar'."
                 )
-                self.hdmi_status_label.setStyleSheet(
-                    "color: #f39c12; font-size: 14px; font-weight: bold;"
-                )
+                self.hdmi_status_label.setObjectName("StatusWarn")
             else:
                 for dev in devices:
                     self.hdmi_device_combo.addItem(dev["name"], dev["index"])
-                # Seleccionar el actual
                 for i in range(self.hdmi_device_combo.count()):
                     if self.hdmi_device_combo.itemData(i) == current_hdmi["device_index"]:
                         self.hdmi_device_combo.setCurrentIndex(i)
@@ -1002,16 +776,12 @@ class AdminPanelDialog(QDialog):
                 self.hdmi_status_label.setText(
                     f"🟢 {len(devices)} dispositivo(s) detectado(s)"
                 )
-                self.hdmi_status_label.setStyleSheet(
-                    "color: #27ae60; font-size: 14px; font-weight: bold;"
-                )
+                self.hdmi_status_label.setObjectName("StatusOk")
 
         except Exception as exc:
             logger.error("Error refrescando dispositivos HDMI: %s", exc)
             self.hdmi_status_label.setText(f"✕ Error: {exc}")
-            self.hdmi_status_label.setStyleSheet(
-                "color: #e74c3c; font-size: 14px;"
-            )
+            self.hdmi_status_label.setObjectName("StatusError")
 
     def _save_hdmi_config(self):
         try:
@@ -1101,7 +871,7 @@ class AdminPanelDialog(QDialog):
 
         self.auth_status_label = QLabel("Estado: —")
         self.auth_status_label.setWordWrap(True)
-        self.auth_status_label.setStyleSheet("font-size: 14px;")
+        self.auth_status_label.setObjectName("FieldLabel")
         status_layout.addWidget(self.auth_status_label)
 
         self.unlink_btn = QPushButton("🔓 Desvincular Cuenta")
@@ -1180,7 +950,7 @@ class AdminPanelDialog(QDialog):
 
         if self.calendar_manager is None:
             self.auth_status_label.setText("Estado: No configurado")
-            self.auth_status_label.setStyleSheet("color: #95a5a6; font-size: 14px;")
+            self.auth_status_label.setObjectName("HelpText")
             self.unlink_btn.hide()
             return
 
@@ -1190,24 +960,24 @@ class AdminPanelDialog(QDialog):
         if status == "ok" and accounts:
             user = accounts[0].get("username", "cuenta vinculada")
             self.auth_status_label.setText(f"✓ Vinculado como: {user}")
-            self.auth_status_label.setStyleSheet("color: #27ae60; font-size: 14px; font-weight: bold;")
+            self.auth_status_label.setObjectName("StatusOk")
             self.unlink_btn.show()
         elif status == "forbidden":
             self.auth_status_label.setText("✕ Error 403 (Prohibido) — Revisa permisos Azure o email de sala.")
-            self.auth_status_label.setStyleSheet("color: #e74c3c; font-size: 14px; font-weight: bold;")
+            self.auth_status_label.setObjectName("StatusError")
             self.unlink_btn.show()
         elif status == "expired":
             self.auth_status_label.setText("⚠ Sesión caducada — Vuelve a vincular.")
-            self.auth_status_label.setStyleSheet("color: #f39c12; font-size: 14px; font-weight: bold;")
+            self.auth_status_label.setObjectName("StatusWarn")
             self.unlink_btn.show()
         elif accounts:
             user = accounts[0].get("username", "cuenta vinculada")
             self.auth_status_label.setText(f"⚠ Vinculado ({user}) pero con problemas de conexión.")
-            self.auth_status_label.setStyleSheet("color: #f39c12; font-size: 14px;")
+            self.auth_status_label.setObjectName("StatusWarn")
             self.unlink_btn.show()
         else:
             self.auth_status_label.setText("Estado: No vinculado")
-            self.auth_status_label.setStyleSheet("color: #95a5a6; font-size: 14px;")
+            self.auth_status_label.setObjectName("HelpText")
             self.unlink_btn.hide()
 
     def save_calendar_config(self):
@@ -1269,9 +1039,7 @@ class AdminPanelDialog(QDialog):
                 f"🔐 CÓDIGO: {flow['user_code']} — "
                 f"Ve a {flow['verification_uri']}"
             )
-            self.auth_status_label.setStyleSheet(
-                "color: #f39c12; font-size: 14px; font-weight: bold;"
-            )
+            self.auth_status_label.setObjectName("StatusWarn")
 
             self.link_btn.setEnabled(False)
             self.link_btn.setText("⏳ Esperando en Microsoft...")
@@ -1296,7 +1064,7 @@ class AdminPanelDialog(QDialog):
             QMessageBox.information(self, "Éxito", message)
         else:
             self.auth_status_label.setText("✕ Fallo en la vinculación")
-            self.auth_status_label.setStyleSheet("color: #e74c3c; font-size: 14px; font-weight: bold;")
+            self.auth_status_label.setObjectName("StatusError")
             QMessageBox.warning(self, "Error", message)
 
     # ──────────────────────────────────────────────────────────────────

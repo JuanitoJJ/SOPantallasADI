@@ -35,7 +35,7 @@
         "height": 1080,
         "fps": 30
     },
-    "alert_minutes_before_meeting": 10,
+    "alert_minutes_before_meeting": 15,
     "notification_sound_enabled": true,
     "notification_sound_path": ""
 }

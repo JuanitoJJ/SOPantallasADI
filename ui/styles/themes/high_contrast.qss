@@ -1,5 +1,10 @@
 /* ===================================================================
-   TEMA: ALTO CONTRASTE
+   @deprecated — reemplazado por core/qss_generator.py + core/design_tokens.py
+   Este archivo se mantiene como fallback de runtime y como referencia
+   histórica. El QSS activo se genera en memoria desde ThemeTokens.
+   =================================================================== */
+/* ===================================================================
+   TEMA: ALTO CONTRASTE (legacy)
    Máximo contraste (#000000/#ffff00) para baja visión
    =================================================================== */
 

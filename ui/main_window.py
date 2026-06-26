@@ -12,11 +12,13 @@ from core.app_launcher import launch_application, close_all_launched_apps
 from core.volume_manager import set_system_volume, get_current_volume
 from core.logger import get_logger
 from core.notification_manager import notification_manager, NotificationLevel
+from core.theme_manager import theme_manager
 from core import audit
 from ui.admin_panel import AdminPanelDialog
 from ui.touch_dialogs import TouchConfirmDialog, TouchAdminLoginDialog
 from ui.widgets import apply_text_outline
 from ui.widgets.clock_widget import ClockWidget
+from ui.widgets.room_status_badge import RoomStatusBadge
 from ui.widgets.volume_control import VolumeControl
 from ui.widgets.app_grid import AppGrid
 from ui.widgets.toast_notification import ToastContainer
@@ -77,6 +79,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.config_manager = ConfigManager()
+        self.tokens = theme_manager.current_tokens()
 
         self.calendar_manager = None
         if self.config_manager.config.get("calendar_enabled"):
@@ -227,8 +230,9 @@ class MainWindow(QMainWindow):
             if len(self.wallpaper_files) > 1:
                 self.wallpaper_timer.start(interval * 1000)
         else:
-            # Fondo por defecto si no hay imágenes
-            self.central_widget.setStyleSheet("#MainLauncher { background-color: #1a1a1a; }")
+            self.central_widget.setStyleSheet(
+                f"#MainLauncher {{ background-color: {self.tokens.surface_base}; }}"
+            )
 
     def next_wallpaper(self):
         if not self.wallpaper_files:
@@ -265,11 +269,12 @@ class MainWindow(QMainWindow):
         self.wallpaper_index = (self.wallpaper_index + 1) % len(self.wallpaper_files)
 
     def adjust_text_contrast(self, is_light_bg: bool):
-        text_color = "#1a1a1a" if is_light_bg else "#ffffff"
-        date_color = "#444444" if is_light_bg else "#bdc3c7"
-        shadow_color = "#ffffff" if is_light_bg else "#000000"
-        cal_title_color = "#1b4f72" if is_light_bg else "#3498db"
-        signature_color = "#444444" if is_light_bg else "#7f8c8d"
+        t = self.tokens
+        text_color = t.text_primary
+        date_color = t.text_secondary
+        shadow_color = t.surface_inverse
+        cal_title_color = t.meeting
+        signature_color = t.text_muted
 
         def apply_style(label, color, shadow_col):
             if label is None:
@@ -288,7 +293,13 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'signature'):
             apply_style(self.signature, signature_color, shadow_color)
         if hasattr(self, 'cal_title') and self.cal_title is not None:
-            self.cal_title.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {cal_title_color}; margin-top: 20px;")
+            self.cal_title.setStyleSheet(
+                f"font-family: \"{t.font_family_body}\"; "
+                f"font-size: {t.type_lg}px; "
+                f"font-weight: {t.weight_bold}; "
+                f"color: {cal_title_color}; "
+                f"margin-top: {t.space_4}px;"
+            )
             effect = self.cal_title.graphicsEffect()
             if isinstance(effect, QGraphicsDropShadowEffect):
                 effect.setColor(QColor(shadow_color))
@@ -401,12 +412,17 @@ class MainWindow(QMainWindow):
         self.admin_btn.setObjectName("AdminButton")
         self.admin_btn.clicked.connect(self.open_admin_panel)
 
-        # Ponemos el admin en el layout izquierdo al fondo
         footer_layout = QHBoxLayout()
 
         self.signature = QLabel("Programado por Juan Jarque")
         self.signature.setObjectName("SignatureLabel")
         apply_text_outline(self.signature)
+        self.signature.setStyleSheet(
+            f"color: {self.tokens.text_muted}; "
+            f"font-size: {self.tokens.type_xs}px; "
+            f"font-style: italic; "
+            f"letter-spacing: 1px;"
+        )
         footer_layout.addWidget(self.signature)
 
         footer_layout.addStretch()
@@ -414,22 +430,39 @@ class MainWindow(QMainWindow):
         left_panel.addLayout(footer_layout)
 
     def _setup_calendar_panel(self):
-        """Construye o reconstruye el panel derecho del calendario."""
-        # Si ya existía un panel anterior, eliminarlo del layout
         if self.right_panel_widget is not None:
             self.content_layout.removeWidget(self.right_panel_widget)
             self.right_panel_widget.deleteLater()
 
         self.right_panel_widget = QWidget()
         right_panel = QVBoxLayout(self.right_panel_widget)
+        right_panel.setContentsMargins(0, 0, 0, 0)
+        right_panel.setSpacing(self.tokens.space_4)
+
+        cal_title_row = QHBoxLayout()
+        cal_title_row.setSpacing(self.tokens.space_3)
 
         self.cal_title = QLabel("REUNIONES DE HOY")
         self.cal_title.setObjectName("CalendarTitle")
-        self.cal_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #3498db; margin-top: 20px;")
+        self.cal_title.setStyleSheet(
+            f"font-family: \"{self.tokens.font_family_display}\"; "
+            f"font-size: {self.tokens.type_lg}px; "
+            f"font-weight: {self.tokens.weight_bold}; "
+            f"color: {self.tokens.meeting}; "
+            f"letter-spacing: 2px; "
+            f"margin-top: {self.tokens.space_4}px;"
+        )
         apply_text_outline(self.cal_title)
-        right_panel.addWidget(self.cal_title)
+        cal_title_row.addWidget(self.cal_title)
+        cal_title_row.addStretch()
+
+        self.room_status_badge = RoomStatusBadge(self.calendar_manager, parent=self)
+        cal_title_row.addWidget(self.room_status_badge, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        right_panel.addLayout(cal_title_row)
 
         self.meetings_container = QVBoxLayout()
+        self.meetings_container.setSpacing(self.tokens.space_3)
         right_panel.addLayout(self.meetings_container)
         right_panel.addStretch()
 
@@ -466,7 +499,10 @@ class MainWindow(QMainWindow):
             warn = QLabel("⚠ Sesión caducada — Accede al panel Admin para re-autenticar.")
             warn.setWordWrap(True)
             warn.setStyleSheet(
-                "color: #e67e22; font-size: 14px; font-style: italic; margin-top: 8px;"
+                f"color: {self.tokens.warning}; "
+                f"font-size: {self.tokens.type_sm}px; "
+                f"font-style: italic; "
+                f"margin-top: {self.tokens.space_2}px;"
             )
             self.meetings_container.addWidget(warn)
             return
@@ -474,7 +510,10 @@ class MainWindow(QMainWindow):
             warn = QLabel("⚠ Error de permisos (403). Revisa la configuración del email de sala en Admin.")
             warn.setWordWrap(True)
             warn.setStyleSheet(
-                "color: #e74c3c; font-size: 14px; font-style: italic; margin-top: 8px;"
+                f"color: {self.tokens.danger}; "
+                f"font-size: {self.tokens.type_sm}px; "
+                f"font-style: italic; "
+                f"margin-top: {self.tokens.space_2}px;"
             )
             self.meetings_container.addWidget(warn)
             return
@@ -482,7 +521,10 @@ class MainWindow(QMainWindow):
             warn = QLabel("⚠ No se pudo conectar con el calendario.")
             warn.setWordWrap(True)
             warn.setStyleSheet(
-                "color: #e74c3c; font-size: 14px; font-style: italic; margin-top: 8px;"
+                f"color: {self.tokens.danger}; "
+                f"font-size: {self.tokens.type_sm}px; "
+                f"font-style: italic; "
+                f"margin-top: {self.tokens.space_2}px;"
             )
             self.meetings_container.addWidget(warn)
             return
@@ -534,36 +576,66 @@ class MainWindow(QMainWindow):
                 logger.warning("Error procesando fecha de reunión: %s", e)
 
         if not meetings:
-            no_meetings = QLabel("No hay más reuniones para hoy.")
-            no_meetings.setStyleSheet("color: #bdc3c7; font-style: italic; font-size: 16px; margin-top: 10px;")
-            self.meetings_container.addWidget(no_meetings)
+            empty_container = QFrame()
+            empty_container.setObjectName("EmptyState")
+            empty_layout = QVBoxLayout(empty_container)
+            empty_layout.setContentsMargins(0, self.tokens.space_5, 0, 0)
+            empty_layout.setSpacing(self.tokens.space_2)
+
+            headline = QLabel("Sala libre")
+            headline.setStyleSheet(
+                f"color: {self.tokens.room_free}; "
+                f"font-family: \"{self.tokens.font_family_display}\"; "
+                f"font-size: {self.tokens.type_2xl}px; "
+                f"font-weight: {self.tokens.weight_bold};"
+            )
+            empty_layout.addWidget(headline)
+
+            subline = QLabel("Sin reuniones programadas para hoy.")
+            subline.setStyleSheet(
+                f"color: {self.tokens.text_secondary}; "
+                f"font-size: {self.tokens.type_md}px;"
+            )
+            empty_layout.addWidget(subline)
+
+            hint = QLabel("Reserva una reunión desde Outlook para que aparezca aquí.")
+            hint.setWordWrap(True)
+            hint.setStyleSheet(
+                f"color: {self.tokens.text_muted}; "
+                f"font-size: {self.tokens.type_sm}px; "
+                f"font-style: italic;"
+            )
+            empty_layout.addWidget(hint)
+
+            self.meetings_container.addWidget(empty_container)
             return
 
-        for idx, mtg in enumerate(meetings[:5]):  # Mostrar máximo 5
+        for idx, mtg in enumerate(meetings[:5]):
             card = QFrame()
             card.setObjectName("MeetingCard")
-            card.setStyleSheet("""
-                #MeetingCard {
-                    background-color: #2c3e50;
-                    border-radius: 10px;
-                    padding: 10px;
-                    margin-bottom: 5px;
-                }
-            """)
             card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(
+                self.tokens.space_3, self.tokens.space_3,
+                self.tokens.space_3, self.tokens.space_3
+            )
+            card_layout.setSpacing(self.tokens.space_1)
 
             subject_text = mtg.get('subject', 'Sin Título')
             subject = QLabel(subject_text)
-            subject.setStyleSheet("color: white; font-weight: bold; font-size: 16px;")
+            subject.setStyleSheet(
+                f"color: {self.tokens.text_primary}; "
+                f"font-family: \"{self.tokens.font_family_display}\"; "
+                f"font-weight: {self.tokens.weight_semibold}; "
+                f"font-size: {self.tokens.type_md}px;"
+            )
             subject.setWordWrap(True)
 
-            # Usar la hora ya procesada y cacheada en el filtrado anterior
             try:
                 start_dt_local = mtg.get('_start_local')
                 if start_dt_local is None:
                     start_raw = mtg['start']['dateTime'].split('.')[0]
                     start_dt_local = datetime.strptime(start_raw, "%Y-%m-%dT%H:%M:%S")
-                
+
                 end_dt_local = mtg.get('_end_local')
                 if end_dt_local is None and 'end' in mtg:
                     try:
@@ -573,42 +645,37 @@ class MainWindow(QMainWindow):
                         end_dt_local = None
 
                 if end_dt_local:
-                    time_text = f"{start_dt_local.strftime('%H:%M')} - {end_dt_local.strftime('%H:%M')}"
+                    time_text = f"{start_dt_local.strftime('%H:%M')} – {end_dt_local.strftime('%H:%M')}"
                 else:
                     time_text = start_dt_local.strftime("%H:%M")
-                
+
                 time_label = QLabel(time_text)
-                time_label.setStyleSheet("color: #bdc3c7; font-size: 14px;")
+                time_label.setStyleSheet(
+                    f"color: {self.tokens.text_secondary}; "
+                    f"font-family: \"{self.tokens.font_family_mono}\"; "
+                    f"font-size: {self.tokens.type_sm}px;"
+                )
             except Exception:
                 time_label = QLabel("Hora no disponible")
-                time_label.setStyleSheet("color: #bdc3c7; font-size: 14px;")
+                time_label.setStyleSheet(
+                    f"color: {self.tokens.text_muted}; "
+                    f"font-size: {self.tokens.type_sm}px;"
+                )
 
             card_layout.addWidget(subject)
             card_layout.addWidget(time_label)
 
-            # Detectar si es reunión online (Teams)
             teams_url = mtg.get('onlineMeetingUrl') or (mtg.get('onlineMeeting') or {}).get('joinUrl')
             if teams_url:
-                join_btn = QPushButton("UNIRSE A REUNIÓN")
-                join_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #464eb8;
-                        color: white;
-                        border-radius: 5px;
-                        font-weight: bold;
-                        padding: 8px;
-                        margin-top: 5px;
-                    }
-                    QPushButton:pressed {
-                        background-color: #353a8d;
-                    }
-                """)
+                join_btn = QPushButton("Unirse a la reunión")
+                join_btn.setObjectName("MeetingJoinButton")
+                join_btn.setMinimumHeight(40)
+                join_btn.setCursor(Qt.CursorShape.PointingHandCursor)
                 join_btn.clicked.connect(lambda checked, url=teams_url: QDesktopServices.openUrl(QUrl(url)))
                 card_layout.addWidget(join_btn)
 
             self.meetings_container.addWidget(card)
 
-            # Fade-in escalonado: cada tarjeta aparece 80ms después de la anterior
             self._animate_card_in(card, delay_ms=idx * 80)
 
     def _animate_card_in(self, widget, delay_ms: int = 0):

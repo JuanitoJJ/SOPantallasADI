@@ -15,7 +15,6 @@ env/
 .idea/
 *.swp
 .cursor/
-.codegraph/
 .claude/
 
 # Builds

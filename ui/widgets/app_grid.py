@@ -8,6 +8,7 @@ import os
 from core.app_launcher import launch_application
 from core.app_categories import app_category_manager, DEFAULT_CATEGORY
 from core.path_utils import get_resource_path
+from core.theme_manager import theme_manager
 from ui.widgets import apply_text_outline
 from ui.animations import fade_in
 
@@ -18,14 +19,18 @@ class AppCard(QPushButton):
     def __init__(self, app_info: dict, parent=None):
         super().__init__(parent)
         self.app_info = app_info
+        self._tokens = theme_manager.current_tokens()
         self.setObjectName("AppButton")
         self.setFixedSize(110, 110)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(4)
+        layout.setContentsMargins(
+            self._tokens.space_2, self._tokens.space_2,
+            self._tokens.space_2, self._tokens.space_2
+        )
+        layout.setSpacing(self._tokens.space_1)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.icon_label = QLabel()
@@ -38,7 +43,10 @@ class AppCard(QPushButton):
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.name_label.setWordWrap(True)
         self.name_label.setStyleSheet(
-            "color: white; font-size: 12px; font-weight: 600; background: transparent;"
+            f"color: {self._tokens.text_primary}; "
+            f"font-size: {self._tokens.type_xs}px; "
+            f"font-weight: {self._tokens.weight_semibold}; "
+            f"background: transparent;"
         )
         apply_text_outline(self.name_label)
         layout.addWidget(self.name_label)
@@ -48,8 +56,10 @@ class AppCard(QPushButton):
             self.category_label = QLabel(category)
             self.category_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.category_label.setStyleSheet(
-                "color: rgba(255,255,255,0.6); font-size: 11px; "
-                "font-style: italic; background: transparent;"
+                f"color: {self._tokens.text_secondary}; "
+                f"font-size: {self._tokens.type_xs}px; "
+                f"font-style: italic; "
+                f"background: transparent;"
             )
             apply_text_outline(self.category_label, blur_radius=1)
             layout.addWidget(self.category_label)
@@ -69,12 +79,14 @@ class AppCard(QPushButton):
                 if not pix.isNull():
                     self.icon_label.setPixmap(pix)
                     return
-        # Fallback: emoji de la primera letra
         name = self.app_info.get("name", "?")
         first_letter = name[0].upper() if name else "?"
         self.icon_label.setText(first_letter)
         self.icon_label.setStyleSheet(
-            "color: white; font-size: 28px; font-weight: bold; background: transparent;"
+            f"color: {self._tokens.accent}; "
+            f"font-size: 28px; "
+            f"font-weight: {self._tokens.weight_bold}; "
+            f"background: transparent;"
         )
 
     def flash(self):
@@ -110,16 +122,19 @@ class AppGrid(QWidget):
         main_layout.setSpacing(12)
 
         if self._show_category_filter:
+            t = theme_manager.current_tokens()
             filter_row = QHBoxLayout()
             filter_lbl = QLabel("Categoría:")
             filter_lbl.setStyleSheet(
-                "color: #bdc3c7; font-size: 14px; font-weight: bold;"
+                f"color: {t.text_secondary}; "
+                f"font-size: {t.type_sm}px; "
+                f"font-weight: {t.weight_semibold};"
             )
             filter_row.addWidget(filter_lbl)
 
             self.category_combo = QComboBox()
-            self.category_combo.setMinimumHeight(36)
-            self.category_combo.setMinimumWidth(200)
+            self.category_combo.setMinimumHeight(40)
+            self.category_combo.setMinimumWidth(220)
             self.category_combo.addItem("Todas las categorías", "all")
             categories = app_category_manager.get_all_categories(self.apps)
             for cat in categories:
@@ -130,7 +145,10 @@ class AppGrid(QWidget):
             filter_row.addStretch()
 
             count_lbl = QLabel()
-            count_lbl.setStyleSheet("color: #7f8c8d; font-size: 12px;")
+            count_lbl.setStyleSheet(
+                f"color: {t.text_muted}; "
+                f"font-size: {t.type_xs}px;"
+            )
             self._count_label = count_lbl
             filter_row.addWidget(count_lbl)
 

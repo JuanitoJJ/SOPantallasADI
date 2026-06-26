@@ -1,13 +1,12 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "codegraph": {
+    "context7": {
       "type": "local",
-      "command": [
-        "codegraph",
-        "serve",
-        "--mcp"
-      ],
+      "command": ["npx", "-y", "@upstash/context7-mcp"],
+      "environment": {
+        "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"
+      },
       "enabled": true
     }
   }

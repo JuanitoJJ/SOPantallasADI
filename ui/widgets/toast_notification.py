@@ -6,39 +6,43 @@ from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, p
 from PyQt6.QtGui import QFont
 
 from core.notification_manager import Notification, NotificationLevel
+from core.theme_manager import theme_manager
 from core.logger import get_logger
 
 
 logger = get_logger("ui.widgets.toast_notification")
 
 
-LEVEL_STYLES = {
-    NotificationLevel.INFO: {
-        "bg": "#3498db",
-        "icon": "ℹ",
-        "border": "#2980b9",
-    },
-    NotificationLevel.WARNING: {
-        "bg": "#f39c12",
-        "icon": "⚠",
-        "border": "#e67e22",
-    },
-    NotificationLevel.ERROR: {
-        "bg": "#e74c3c",
-        "icon": "✕",
-        "border": "#c0392b",
-    },
-    NotificationLevel.SUCCESS: {
-        "bg": "#27ae60",
-        "icon": "✓",
-        "border": "#229954",
-    },
-    NotificationLevel.MEETING: {
-        "bg": "#464eb8",
-        "icon": "📅",
-        "border": "#353a8d",
-    },
+LEVEL_GLYPHS = {
+    NotificationLevel.INFO: "ℹ",
+    NotificationLevel.WARNING: "⚠",
+    NotificationLevel.ERROR: "✕",
+    NotificationLevel.SUCCESS: "✓",
+    NotificationLevel.MEETING: "📅",
 }
+
+
+def _level_color(level: NotificationLevel) -> str:
+    t = theme_manager.current_tokens()
+    return {
+        NotificationLevel.INFO: t.info,
+        NotificationLevel.WARNING: t.warning,
+        NotificationLevel.ERROR: t.danger,
+        NotificationLevel.SUCCESS: t.success,
+        NotificationLevel.MEETING: t.meeting,
+    }.get(level, t.info)
+
+
+def _level_dark_color(level: NotificationLevel) -> str:
+    t = theme_manager.current_tokens()
+    return {
+        NotificationLevel.INFO: t.accent_pressed,
+        NotificationLevel.WARNING: t.accent_pressed,
+        NotificationLevel.ERROR: t.accent_pressed,
+        NotificationLevel.SUCCESS: t.accent_pressed,
+        NotificationLevel.MEETING: t.accent_pressed,
+    }.get(level, t.accent_pressed)
+
 
 DEFAULT_DURATION_MS = 6000
 SLIDE_DURATION_MS = 350
@@ -53,6 +57,7 @@ class ToastNotification(QFrame):
         super().__init__(parent)
         self.notification = notification
         self.duration_ms = duration_ms
+        self._tokens = theme_manager.current_tokens()
         self._build()
         self._apply_style()
 
@@ -66,12 +71,12 @@ class ToastNotification(QFrame):
         layout.setContentsMargins(14, 12, 14, 12)
         layout.setSpacing(12)
 
-        style = LEVEL_STYLES.get(self.notification.level, LEVEL_STYLES[NotificationLevel.INFO])
-        self.icon_label = QLabel(style["icon"])
+        glyph = LEVEL_GLYPHS.get(self.notification.level, LEVEL_GLYPHS[NotificationLevel.INFO])
+        self.icon_label = QLabel(glyph)
         self.icon_label.setObjectName("ToastIcon")
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        font = QFont()
-        font.setPointSize(20)
+        font = QFont(self._tokens.font_family_body)
+        font.setPointSizeF(20.0)
         font.setBold(True)
         self.icon_label.setFont(font)
         self.icon_label.setFixedWidth(32)
@@ -83,8 +88,8 @@ class ToastNotification(QFrame):
         self.title_label = QLabel(self.notification.title)
         self.title_label.setObjectName("ToastTitle")
         self.title_label.setWordWrap(True)
-        font_title = QFont()
-        font_title.setPointSize(12)
+        font_title = QFont(self._tokens.font_family_body)
+        font_title.setPointSizeF(self._tokens.type_sm * 0.75)
         font_title.setBold(True)
         self.title_label.setFont(font_title)
         text_layout.addWidget(self.title_label)
@@ -93,8 +98,8 @@ class ToastNotification(QFrame):
             self.message_label = QLabel(self.notification.message)
             self.message_label.setObjectName("ToastMessage")
             self.message_label.setWordWrap(True)
-            font_msg = QFont()
-            font_msg.setPointSize(10)
+            font_msg = QFont(self._tokens.font_family_body)
+            font_msg.setPointSizeF(self._tokens.type_xs * 0.75)
             self.message_label.setFont(font_msg)
             text_layout.addWidget(self.message_label)
 
@@ -121,32 +126,37 @@ class ToastNotification(QFrame):
         self.setGraphicsEffect(self.opacity_effect)
 
     def _apply_style(self):
-        style = LEVEL_STYLES.get(self.notification.level, LEVEL_STYLES[NotificationLevel.INFO])
+        level = self.notification.level
+        bg = _level_color(level)
+        border = _level_dark_color(level)
+        t = self._tokens
+
         self.setStyleSheet(f"""
             #ToastNotification {{
-                background-color: {style['bg']};
-                border: 2px solid {style['border']};
-                border-radius: 10px;
-                color: white;
+                background-color: {bg};
+                border: 1px solid {border};
+                border-radius: {t.card_radius}px;
+                color: {t.text_on_accent};
             }}
             #ToastTitle {{
-                color: white;
+                color: {t.text_on_accent};
                 background: transparent;
                 border: none;
             }}
             #ToastMessage {{
-                color: rgba(255, 255, 255, 0.9);
+                color: {t.text_on_accent};
+                opacity: 0.92;
                 background: transparent;
                 border: none;
             }}
             #ToastIcon {{
-                color: white;
+                color: {t.text_on_accent};
                 background: transparent;
                 border: none;
             }}
             #ToastCloseButton {{
                 background-color: rgba(0, 0, 0, 0.15);
-                color: white;
+                color: {t.text_on_accent};
                 border: none;
                 border-radius: 14px;
                 font-weight: bold;
@@ -157,9 +167,9 @@ class ToastNotification(QFrame):
             }}
             #ToastActionButton {{
                 background-color: rgba(255, 255, 255, 0.2);
-                color: white;
+                color: {t.text_on_accent};
                 border: 1px solid rgba(255, 255, 255, 0.4);
-                border-radius: 5px;
+                border-radius: 6px;
                 padding: 6px 12px;
                 font-weight: bold;
                 margin-top: 4px;

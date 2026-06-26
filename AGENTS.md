@@ -49,9 +49,12 @@ En este repo **no hay test suite, ni linter, ni typecheck, ni CI**. No invocar `
 | Schema SQLite + auditoría | `core/database.py`, `core/audit.py` |
 | MSAL / Graph | `core/calendar_manager.py`, `core/calendar_cache.py` |
 | Captura HDMI (OpenCV/DirectShow) | `core/hdmi_capture.py`, `ui/hdmi_viewer_window.py` |
-| Tema/QSS | `core/theme_manager.py`, `ui/styles/themes/*.qss` |
-| Salvapantallas | `ui/screensaver.py` + `ui/screensaver_*.py` |
+| Tokens de diseño (color/tipo/spacing/radios) | `core/design_tokens.py` |
+| Generación de QSS desde tokens | `core/qss_generator.py` |
+| Tema/QSS | `core/theme_manager.py`, `ui/styles/themes/*.qss` *(legacy fallback)* |
+| Salvapantallas | *(eliminado en 2.0; commit 2127202 — pendiente de reimplementar)* |
 | Panel admin (6 pestañas) | `ui/admin_panel.py` + `ui/admin_widgets/` |
+| Badge de estado de sala (signature) | `ui/widgets/room_status_badge.py` |
 
 ## Notas de estilo / flujo de trabajo
 
@@ -60,6 +63,4 @@ En este repo **no hay test suite, ni linter, ni typecheck, ni CI**. No invocar `
 - Los temas QSS se cargan en vivo desde disco y se aplican vía `QApplication.setStyleSheet`; cambiar de tema no requiere reinicio.
 - Al cambiar assets empaquetados (iconos, wallpapers, quotes, events, QSS), recuerda que el spec empaqueta `ui/styles` y `assets` vía `--add-data` — rebuilderar con `pyinstaller SOPantallas.spec` para distribuir los cambios.
 
-## CodeGraph
 
-El MCP `codegraph` está configurado en `opencode.jsonc`. Usar las herramientas `codegraph_*` para preguntas estructurales (dónde se define, callers, impacto) antes de hacer grep. El índice vive en `.codegraph/` (en .gitignore).

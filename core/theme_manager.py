@@ -2,24 +2,43 @@ import os
 import re
 from core.logger import get_logger
 from core.path_utils import get_resource_path
+from core.design_tokens import (
+    ThemeTokens,
+    THEMES as TOKEN_THEMES,
+    DARK,
+    LIGHT,
+    HIGH_CONTRAST,
+    THEME_DARK,
+    THEME_LIGHT,
+    THEME_HIGH_CONTRAST,
+    DEFAULT_THEME,
+    get_tokens as _tokens_for,
+)
 
 
 logger = get_logger("core.theme_manager")
 
 
-THEME_DARK = "dark"
-THEME_LIGHT = "light"
-THEME_HIGH_CONTRAST = "high_contrast"
-
 THEMES = {
     THEME_DARK: {
         "label": "Oscuro",
         "file": "dark.qss",
-        "description": "Fondo oscuro (#1a1a1a) con acentos azules",
+        "description": "Slate cálido con acento ámbar — sala nocturna",
+        "tokens": DARK,
+    },
+    THEME_LIGHT: {
+        "label": "Claro",
+        "file": "light.qss",
+        "description": "Warm-paper con acento ámbar profundo — sala diurna",
+        "tokens": LIGHT,
+    },
+    THEME_HIGH_CONTRAST: {
+        "label": "Alto Contraste",
+        "file": "high_contrast.qss",
+        "description": "Negro absoluto con amarillo WCAG AAA — accesibilidad",
+        "tokens": HIGH_CONTRAST,
     },
 }
-
-DEFAULT_THEME = THEME_DARK
 
 
 class ThemeManager:
@@ -37,10 +56,10 @@ class ThemeManager:
         self._initialized = True
         self._current_theme = DEFAULT_THEME
         self._cached_stylesheets = {}
+        self._cached_tokens = {}
         self._listeners = []
 
     def get_available_themes(self) -> list:
-        """Retorna lista de tuplas (id, label, description) para selector."""
         return [
             (theme_id, data["label"], data["description"])
             for theme_id, data in THEMES.items()
@@ -55,14 +74,11 @@ class ThemeManager:
             theme_id = DEFAULT_THEME
         if theme_id != self._current_theme:
             self._current_theme = theme_id
+            self._cached_stylesheets.pop(theme_id, None)
             logger.info("Tema cambiado a: %s (%s)", theme_id, THEMES[theme_id]["label"])
             self._notify_listeners(theme_id)
 
     def register_listener(self, callback):
-        """Registra callback que se ejecuta cuando cambia el tema.
-
-        El callback recibe el theme_id como argumento.
-        """
         if callback not in self._listeners:
             self._listeners.append(callback)
 
@@ -77,8 +93,17 @@ class ThemeManager:
             except Exception as exc:
                 logger.warning("Listener de tema falló: %s", exc)
 
+    def get_tokens(self, theme_id: str = None) -> ThemeTokens:
+        if theme_id is None:
+            theme_id = self._current_theme
+        if theme_id not in THEMES:
+            theme_id = DEFAULT_THEME
+        return THEMES[theme_id]["tokens"]
+
+    def current_tokens(self) -> ThemeTokens:
+        return self.get_tokens(self._current_theme)
+
     def load_stylesheet(self, theme_id: str = None) -> str:
-        """Carga y devuelve el QSS del tema solicitado, con URLs resueltas."""
         if theme_id is None:
             theme_id = self._current_theme
         if theme_id not in THEMES:
@@ -87,27 +112,40 @@ class ThemeManager:
         if theme_id in self._cached_stylesheets:
             return self._cached_stylesheets[theme_id]
 
+        try:
+            from core.qss_generator import generate_qss
+        except Exception as exc:
+            logger.error("No se pudo cargar qss_generator: %s", exc)
+            return self._load_legacy_stylesheet(theme_id)
+
+        tokens = THEMES[theme_id]["tokens"]
+        try:
+            content = generate_qss(tokens)
+            content = self._resolve_urls(content)
+            self._cached_stylesheets[theme_id] = content
+            logger.debug("Tema '%s' generado desde tokens (%d chars)", theme_id, len(content))
+            return content
+        except Exception as exc:
+            logger.error("Error generando QSS para '%s': %s", theme_id, exc)
+            return self._load_legacy_stylesheet(theme_id)
+
+    def _load_legacy_stylesheet(self, theme_id: str) -> str:
         qss_path = get_resource_path(
             os.path.join("ui", "styles", "themes", THEMES[theme_id]["file"])
         )
         if not os.path.exists(qss_path):
-            logger.error("No se encontró el archivo de tema: %s", qss_path)
+            logger.error("No se encontró el archivo de tema legacy: %s", qss_path)
             return ""
-
         try:
             with open(qss_path, "r", encoding="utf-8") as f:
-                content = f.read()
-
-            content = self._resolve_urls(content)
+                content = self._resolve_urls(f.read())
             self._cached_stylesheets[theme_id] = content
-            logger.debug("Tema '%s' cargado (%d chars)", theme_id, len(content))
             return content
         except Exception as exc:
-            logger.error("Error cargando tema '%s': %s", theme_id, exc)
+            logger.error("Error cargando tema legacy '%s': %s", theme_id, exc)
             return ""
 
     def apply_to(self, app, theme_id: str = None) -> bool:
-        """Aplica el tema a una instancia de QApplication."""
         qss = self.load_stylesheet(theme_id)
         if not qss:
             return False
@@ -118,11 +156,9 @@ class ThemeManager:
         return True
 
     def apply(self, app):
-        """Atajo para aplicar el tema actual."""
         return self.apply_to(app, self._current_theme)
 
     def invalidate_cache(self):
-        """Limpia el cache (útil para desarrollo o recarga en caliente)."""
         self._cached_stylesheets.clear()
         logger.debug("Cache de QSS invalidado")
 

@@ -1,5 +1,10 @@
 /* ===================================================================
-   TEMA: CLARO
+   @deprecated — reemplazado por core/qss_generator.py + core/design_tokens.py
+   Este archivo se mantiene como fallback de runtime y como referencia
+   histórica. El QSS activo se genera en memoria desde ThemeTokens.
+   =================================================================== */
+/* ===================================================================
+   TEMA: CLARO (legacy)
    Fondo claro (#f5f7fa) con acentos en azul corporativo (#1976d2)
    =================================================================== */
 

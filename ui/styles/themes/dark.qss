@@ -1,5 +1,10 @@
 /* ===================================================================
-   TEMA: OSCURO
+   @deprecated — reemplazado por core/qss_generator.py + core/design_tokens.py
+   Este archivo se mantiene como fallback de runtime y como referencia
+   histórica. El QSS activo se genera en memoria desde ThemeTokens.
+   =================================================================== */
+/* ===================================================================
+   TEMA: OSCURO (legacy)
    Fondo oscuro (#1a1a1a) con acentos en azul corporativo (#3498db)
    =================================================================== */
 

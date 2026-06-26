@@ -1,14 +1,5 @@
 """
 hdmi_viewer_window.py — Ventana flotante que muestra la entrada HDMI.
-
-Características:
-- Frameless, arrastrable desde la barra superior
-- Botón X cerrar (esquina superior derecha)
-- Botón minimizar
-- QLabel central scaledContents para el video
-- Footer con estado (conectado / sin señal / error) + grip de resize
-- Tamaño inicial 80% × 70% del screen principal, centrada
-- Doble click en barra → toggle fullscreen / flotante
 """
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QSizePolicy, QGraphicsOpacityEffect)
@@ -19,18 +10,39 @@ from core.logger import get_logger
 from core.hdmi_capture import (HDMICaptureManager, get_capture_manager,
                                STATE_CONNECTED, STATE_NO_SIGNAL,
                                STATE_CONNECTING, STATE_ERROR, STATE_CLOSED)
+from core.theme_manager import theme_manager
 from core import audit
 
 
 logger = get_logger("ui.hdmi_viewer_window")
 
 
+STATE_GLYPHS = {
+    STATE_CONNECTING: "🟡",
+    STATE_CONNECTED: "🟢",
+    STATE_NO_SIGNAL: "🟡",
+    STATE_ERROR: "🔴",
+    STATE_CLOSED: "⚫",
+}
+
+
+def _state_color(state: str) -> str:
+    t = theme_manager.current_tokens()
+    return {
+        STATE_CONNECTING: t.warning,
+        STATE_CONNECTED: t.success,
+        STATE_NO_SIGNAL: t.warning,
+        STATE_ERROR: t.danger,
+        STATE_CLOSED: t.text_muted,
+    }.get(state, t.text_muted)
+
+
 STATE_LABELS = {
-    STATE_CONNECTING: ("🟡 Conectando...", "#f39c12"),
-    STATE_CONNECTED: ("🟢 Señal activa", "#27ae60"),
-    STATE_NO_SIGNAL: ("🟡 Sin señal — Conecta un cable HDMI", "#f39c12"),
-    STATE_ERROR: ("🔴 Error de captura", "#e74c3c"),
-    STATE_CLOSED: ("⚫ Cerrado", "#7f8c8d"),
+    STATE_CONNECTING: "Conectando…",
+    STATE_CONNECTED: "Señal activa",
+    STATE_NO_SIGNAL: "Sin señal — Conecta un cable HDMI",
+    STATE_ERROR: "Error de captura",
+    STATE_CLOSED: "Cerrado",
 }
 
 
@@ -78,7 +90,6 @@ class HDMIViewerWindow(QWidget):
             self._toggle_fullscreen()
 
     def _build_ui(self):
-        """Construye la UI: barra superior + video + footer."""
         self.setWindowTitle("Compartir Pantalla — HDMI Input")
         self.setWindowFlags(
             Qt.WindowType.Window
@@ -87,82 +98,7 @@ class HDMIViewerWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.setMinimumSize(480, 320)
-        self.setStyleSheet("""
-            QWidget#HDMIMainFrame {
-                background-color: #1a1a1a;
-                border: 2px solid #3498db;
-                border-radius: 10px;
-            }
-            QLabel#HDMITitle {
-                color: white;
-                font-size: 14px;
-                font-weight: bold;
-                background: transparent;
-                padding-left: 8px;
-            }
-            QPushButton#HDMICloseBtn {
-                background-color: #e74c3c;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 14px;
-                padding: 4px;
-                min-width: 36px;
-                max-width: 36px;
-                min-height: 32px;
-                max-height: 32px;
-            }
-            QPushButton#HDMICloseBtn:hover {
-                background-color: #c0392b;
-            }
-            QPushButton#HDMICloseBtn:pressed {
-                background-color: #a93226;
-            }
-            QPushButton#HDMIMinBtn {
-                background-color: #34495e;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 14px;
-                padding: 4px;
-                min-width: 36px;
-                max-width: 36px;
-                min-height: 32px;
-                max-height: 32px;
-            }
-            QPushButton#HDMIMinBtn:hover {
-                background-color: #3d566e;
-            }
-            QPushButton#HDMIMaxBtn {
-                background-color: #34495e;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 14px;
-                padding: 4px;
-                min-width: 36px;
-                max-width: 36px;
-                min-height: 32px;
-                max-height: 32px;
-            }
-            QPushButton#HDMIMaxBtn:hover {
-                background-color: #3d566e;
-            }
-            QLabel#HDMIStatus {
-                color: #bdc3c7;
-                font-size: 12px;
-                background: transparent;
-                padding-left: 10px;
-            }
-            QLabel#HDMIResize {
-                background: transparent;
-                color: #7f8c8d;
-                font-size: 14px;
-            }
-        """)
+        t = theme_manager.current_tokens()
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -174,20 +110,16 @@ class HDMIViewerWindow(QWidget):
         frame_layout.setContentsMargins(0, 0, 0, 0)
         frame_layout.setSpacing(0)
 
-        # ── Barra superior ──────────────────────────────────────
         self._title_bar = QWidget()
+        self._title_bar.setObjectName("HDMITitleBar")
         self._title_bar.setFixedHeight(40)
-        self._title_bar.setStyleSheet(
-            "background-color: #2c3e50; border-top-left-radius: 8px; "
-            "border-top-right-radius: 8px;"
-        )
         title_layout = QHBoxLayout(self._title_bar)
-        title_layout.setContentsMargins(8, 0, 8, 0)
-        title_layout.setSpacing(4)
+        title_layout.setContentsMargins(t.space_2, 0, t.space_2, 0)
+        title_layout.setSpacing(t.space_1)
 
         title_icon = QLabel("🖥️")
         title_icon.setStyleSheet(
-            "color: white; font-size: 16px; background: transparent;"
+            f"color: {t.text_primary}; font-size: 16px; background: transparent;"
         )
         title_layout.addWidget(title_icon)
 
@@ -218,29 +150,24 @@ class HDMIViewerWindow(QWidget):
 
         frame_layout.addWidget(self._title_bar)
 
-        # ── Video ──────────────────────────────────────────────
         self._video_label = QLabel()
         self._video_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._video_label.setStyleSheet(
-            "background-color: #000000; color: #7f8c8d; "
-            "font-size: 18px; font-style: italic;"
+            f"background-color: {t.surface_base}; "
+            f"color: {t.text_muted}; font-size: 18px; font-style: italic;"
         )
-        self._video_label.setText("Esperando señal HDMI...")
+        self._video_label.setText("Esperando señal HDMI…")
         self._video_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
         frame_layout.addWidget(self._video_label, 1)
 
-        # ── Footer ─────────────────────────────────────────────
         self._footer = QWidget()
+        self._footer.setObjectName("HDMIFooter")
         self._footer.setFixedHeight(32)
-        self._footer.setStyleSheet(
-            "background-color: #2c3e50; border-bottom-left-radius: 8px; "
-            "border-bottom-right-radius: 8px;"
-        )
         footer_layout = QHBoxLayout(self._footer)
-        footer_layout.setContentsMargins(8, 0, 8, 0)
-        footer_layout.setSpacing(4)
+        footer_layout.setContentsMargins(t.space_2, 0, t.space_2, 0)
+        footer_layout.setSpacing(t.space_1)
 
         self._status_label = QLabel("")
         self._status_label.setObjectName("HDMIStatus")
@@ -255,7 +182,6 @@ class HDMIViewerWindow(QWidget):
 
         main_layout.addWidget(self._main_frame)
 
-        # Tamaño inicial: 80% × 70% del screen
         from PyQt6.QtWidgets import QApplication
         screen = QApplication.primaryScreen()
         if screen:
@@ -263,6 +189,15 @@ class HDMIViewerWindow(QWidget):
             init_w = int(avail.width() * 0.8)
             init_h = int(avail.height() * 0.7)
             self.resize(init_w, init_h)
+
+        theme_manager.register_listener(self._on_theme_changed)
+
+    def _on_theme_changed(self, theme_id: str):
+        t = theme_manager.current_tokens()
+        self._video_label.setStyleSheet(
+            f"background-color: {t.surface_base}; "
+            f"color: {t.text_muted}; font-size: 18px; font-style: italic;"
+        )
 
     def _center_on_screen(self):
         """Centra la ventana en la pantalla principal."""
@@ -291,19 +226,21 @@ class HDMIViewerWindow(QWidget):
         self._set_state(state)
 
     def _set_state(self, state: str):
-        label, color = STATE_LABELS.get(state, ("?", "#7f8c8d"))
-        self._status_label.setText(label)
+        glyph = STATE_GLYPHS.get(state, "?")
+        label = STATE_LABELS.get(state, "Desconocido")
+        color = _state_color(state)
+        self._status_label.setText(f"{glyph}  {label}")
         self._status_label.setStyleSheet(
             f"color: {color}; font-size: 12px; "
             f"font-weight: bold; background: transparent; padding-left: 10px;"
         )
 
         if state == STATE_NO_SIGNAL and self._video_label.pixmap() is None:
-            self._video_label.setText("🟡 Sin señal — Conecta un cable HDMI")
+            self._video_label.setText("🟡  Sin señal — Conecta un cable HDMI")
         elif state == STATE_ERROR:
-            self._video_label.setText("🔴 Error al abrir el dispositivo")
+            self._video_label.setText("🔴  Error al abrir el dispositivo")
         elif state == STATE_CONNECTING:
-            self._video_label.setText("⏳ Conectando...")
+            self._video_label.setText("⏳  Conectando…")
 
     # ── Auditoría ────────────────────────────────────────────────
     def _log_session_start(self):
