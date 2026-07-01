@@ -41,6 +41,7 @@ class RoomStatusBadge(QFrame):
         layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self._dot = QLabel("●")
+        self._dot.setObjectName("RoomStatusDot")
         self._dot.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         dot_font = QFont(self._tokens.font_family_body)
         dot_font.setPointSizeF(20.0)
@@ -49,9 +50,10 @@ class RoomStatusBadge(QFrame):
         layout.addWidget(self._dot, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._label = QLabel(STATE_LABELS[STATE_FREE])
+        self._label.setObjectName("RoomStatusLabel")
         self._label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         label_font = QFont(self._tokens.font_family_body)
-        label_font.setPointSizeF(self._tokens.type_sm * 0.75)
+        label_font.setPointSizeF(self._tokens.type_badge_label)
         label_font.setWeight(self._tokens.weight_semibold)
         label_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.5)
         self._label.setFont(label_font)
@@ -72,7 +74,7 @@ class RoomStatusBadge(QFrame):
     def _on_theme_changed(self, theme_id: str):
         self._tokens = theme_manager.current_tokens()
         label_font = QFont(self._tokens.font_family_body)
-        label_font.setPointSizeF(self._tokens.type_sm * 0.75)
+        label_font.setPointSizeF(self._tokens.type_badge_label)
         label_font.setWeight(self._tokens.weight_semibold)
         label_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.5)
         self._label.setFont(label_font)
@@ -123,22 +125,26 @@ class RoomStatusBadge(QFrame):
         return STATE_FREE, None
 
     def _apply_state(self):
-        t = self._tokens
-        if self._state == STATE_FREE:
-            self._dot.setStyleSheet(f"color: {t.room_free}; background: transparent;")
+        state = self._state
+        self.setProperty("state", state)
+        self._dot.setProperty("state", state)
+        self._label.setProperty("state", state)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self._dot.style().unpolish(self._dot)
+        self._dot.style().polish(self._dot)
+        self._label.style().unpolish(self._label)
+        self._label.style().polish(self._label)
+
+        if state == STATE_FREE:
             self._label.setText(STATE_LABELS[STATE_FREE])
-            self._label.setStyleSheet(f"color: {t.text_secondary}; background: transparent;")
             self._stop_pulse()
-        elif self._state == STATE_IMMINENT:
+        elif state == STATE_IMMINENT:
             minutes = (self._next_meeting or {}).get("minutes", 0)
-            self._dot.setStyleSheet(f"color: {t.room_imminent}; background: transparent;")
             self._label.setText(STATE_LABELS[STATE_IMMINENT].format(minutes=minutes))
-            self._label.setStyleSheet(f"color: {t.text_primary}; background: transparent;")
             self._start_pulse()
-        elif self._state == STATE_OCCUPIED:
-            self._dot.setStyleSheet(f"color: {t.room_occupied}; background: transparent;")
+        elif state == STATE_OCCUPIED:
             self._label.setText(STATE_LABELS[STATE_OCCUPIED])
-            self._label.setStyleSheet(f"color: {t.text_primary}; background: transparent;")
             self._start_pulse()
 
     def _start_pulse(self):

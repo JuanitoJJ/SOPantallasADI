@@ -43,6 +43,9 @@ def main():
     crash_handler.start_heartbeat()
     watchdog.start()
 
+    from core.font_loader import load_bundled_fonts
+    load_bundled_fonts()
+
     load_stylesheet(app)
 
     try:

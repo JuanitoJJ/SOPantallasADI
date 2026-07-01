@@ -1,16 +1,15 @@
 from PyQt6.QtWidgets import (
-    QWidget, QPushButton, QGridLayout, QLabel, QVBoxLayout, QHBoxLayout,
-    QComboBox, QSizePolicy
+    QWidget, QPushButton, QGridLayout, QLabel, QVBoxLayout, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QSize, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QSize, QTimer, QRect, QPropertyAnimation
 from PyQt6.QtGui import QIcon
 import os
 from core.app_launcher import launch_application
-from core.app_categories import app_category_manager, DEFAULT_CATEGORY
+from core.app_categories import DEFAULT_CATEGORY
 from core.path_utils import get_resource_path
 from core.theme_manager import theme_manager
 from ui.widgets import apply_text_outline
-from ui.animations import fade_in
+from ui.animations import staggered_fade_in, DURATIONS, EASING
 
 
 class AppCard(QPushButton):
@@ -34,33 +33,23 @@ class AppCard(QPushButton):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.icon_label = QLabel()
+        self.icon_label.setObjectName("AppIconLabel")
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.icon_label.setStyleSheet("background: transparent;")
         self.icon_label.setMinimumHeight(45)
         layout.addWidget(self.icon_label, 1)
 
         self.name_label = QLabel(app_info.get("name", ""))
+        self.name_label.setObjectName("AppNameLabel")
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.name_label.setWordWrap(True)
-        self.name_label.setStyleSheet(
-            f"color: {self._tokens.text_primary}; "
-            f"font-size: {self._tokens.type_xs}px; "
-            f"font-weight: {self._tokens.weight_semibold}; "
-            f"background: transparent;"
-        )
         apply_text_outline(self.name_label)
         layout.addWidget(self.name_label)
 
         category = app_info.get("category", DEFAULT_CATEGORY)
         if category and category != DEFAULT_CATEGORY:
             self.category_label = QLabel(category)
+            self.category_label.setObjectName("AppCategoryLabel")
             self.category_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.category_label.setStyleSheet(
-                f"color: {self._tokens.text_secondary}; "
-                f"font-size: {self._tokens.type_xs}px; "
-                f"font-style: italic; "
-                f"background: transparent;"
-            )
             apply_text_outline(self.category_label, blur_radius=1)
             layout.addWidget(self.category_label)
         else:
@@ -81,78 +70,55 @@ class AppCard(QPushButton):
                     return
         name = self.app_info.get("name", "?")
         first_letter = name[0].upper() if name else "?"
+        self.icon_label.setObjectName("AppIconFallback")
         self.icon_label.setText(first_letter)
-        self.icon_label.setStyleSheet(
-            f"color: {self._tokens.accent}; "
-            f"font-size: 28px; "
-            f"font-weight: {self._tokens.weight_bold}; "
-            f"background: transparent;"
-        )
+        self.style().unpolish(self.icon_label)
+        self.style().polish(self.icon_label)
 
     def flash(self):
         self.setProperty("flash", True)
         self.style().unpolish(self)
         self.style().polish(self)
-        QTimer.singleShot(220, lambda: self._clear_flash())
+        QTimer.singleShot(DURATIONS["instant"], self._reset_flash)
+        self._animate_scale()
 
-    def _clear_flash(self):
+    def _reset_flash(self):
         self.setProperty("flash", False)
         self.style().unpolish(self)
         self.style().polish(self)
 
+    def _animate_scale(self):
+        original = self.geometry()
+        cx = original.center()
+        inset = 6
+        start_rect = QRect(
+            cx.x() - (original.width() - inset) // 2,
+            cx.y() - (original.height() - inset) // 2,
+            original.width() - inset,
+            original.height() - inset,
+        )
+        self._flash_anim = QPropertyAnimation(self, b"geometry")
+        self._flash_anim.setDuration(DURATIONS["fast"])
+        self._flash_anim.setStartValue(start_rect)
+        self._flash_anim.setEndValue(original)
+        self._flash_anim.setEasingCurve(EASING["out_back"])
+        self._flash_anim.start()
+
 
 class AppGrid(QWidget):
-    """Grid de aplicaciones con filtro por categoría."""
+    """Grid de aplicaciones."""
 
-    category_changed = pyqtSignal(str)
-
-    def __init__(self, apps: list, parent=None, on_launch=None,
-                 show_category_filter: bool = True):
+    def __init__(self, apps: list, parent=None, on_launch=None):
         super().__init__(parent)
         self.apps = apps
         self.on_launch = on_launch
         self._cards = []
-        self._current_category = "all"
-        self._show_category_filter = show_category_filter
         self._build()
 
     def _build(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(12)
-
-        if self._show_category_filter:
-            t = theme_manager.current_tokens()
-            filter_row = QHBoxLayout()
-            filter_lbl = QLabel("Categoría:")
-            filter_lbl.setStyleSheet(
-                f"color: {t.text_secondary}; "
-                f"font-size: {t.type_sm}px; "
-                f"font-weight: {t.weight_semibold};"
-            )
-            filter_row.addWidget(filter_lbl)
-
-            self.category_combo = QComboBox()
-            self.category_combo.setMinimumHeight(40)
-            self.category_combo.setMinimumWidth(220)
-            self.category_combo.addItem("Todas las categorías", "all")
-            categories = app_category_manager.get_all_categories(self.apps)
-            for cat in categories:
-                if cat and cat != DEFAULT_CATEGORY:
-                    self.category_combo.addItem(cat, cat)
-            self.category_combo.currentIndexChanged.connect(self._on_category_changed)
-            filter_row.addWidget(self.category_combo)
-            filter_row.addStretch()
-
-            count_lbl = QLabel()
-            count_lbl.setStyleSheet(
-                f"color: {t.text_muted}; "
-                f"font-size: {t.type_xs}px;"
-            )
-            self._count_label = count_lbl
-            filter_row.addWidget(count_lbl)
-
-            main_layout.addLayout(filter_row)
 
         self.grid_container = QWidget()
         self._grid_layout = QGridLayout(self.grid_container)
@@ -162,7 +128,16 @@ class AppGrid(QWidget):
         main_layout.addWidget(self.grid_container, 1)
 
         self._render_apps()
-        self._update_count()
+
+    CARD_SIZE = 110
+
+    def _compute_max_cols(self) -> int:
+        available = self.grid_container.width()
+        spacing = self._grid_layout.spacing()
+        if available <= 0:
+            return 5
+        cols = available // (self.CARD_SIZE + spacing)
+        return max(1, min(5, cols))
 
     def _render_apps(self):
         for card in self._cards:
@@ -171,66 +146,46 @@ class AppGrid(QWidget):
             card.deleteLater()
         self._cards = []
 
-        if self._current_category == "all":
-            filtered = self.apps
-        else:
-            filtered = [
-                a for a in self.apps
-                if a.get("category", DEFAULT_CATEGORY) == self._current_category
-            ]
-
-        # Al ser tarjetas de 110x110 px, permitimos hasta 5 columnas en horizontal
-        max_cols = 5
+        max_cols = self._compute_max_cols()
+        self._last_max_cols = max_cols
 
         row, col = 0, 0
-        for idx, app in enumerate(filtered):
+        new_cards = []
+        for idx, app in enumerate(self.apps):
             card = AppCard(app)
             card.clicked.connect(lambda checked, c=card, a=app: self._launch(a, c))
             self._grid_layout.addWidget(card, row, col)
             self._cards.append(card)
-            # Stagger fade-in
-            QTimer.singleShot(
-                idx * 60,
-                lambda c=card: fade_in(c, duration="fast"),
-            )
+            new_cards.append(card)
 
             col += 1
             if col >= max_cols:
                 col = 0
                 row += 1
 
-    def _on_category_changed(self, index: int):
-        self._current_category = self.category_combo.itemData(index) or "all"
-        self._render_apps()
-        self._update_count()
-        self.category_changed.emit(self._current_category)
+        staggered_fade_in(new_cards, stagger_ms=DURATIONS["instant"], duration="fast")
 
-    def _update_count(self):
-        if hasattr(self, '_count_label'):
-            visible = len(self._cards)
-            total = len(self.apps)
-            if self._current_category == "all":
-                self._count_label.setText(f"{total} apps")
-            else:
-                self._count_label.setText(f"{visible} de {total} apps")
+    def _relayout_grid(self):
+        max_cols = self._compute_max_cols()
+        if max_cols == getattr(self, "_last_max_cols", None):
+            return
+        self._last_max_cols = max_cols
+        row, col = 0, 0
+        for card in self._cards:
+            self._grid_layout.removeWidget(card)
+            self._grid_layout.addWidget(card, row, col)
+            col += 1
+            if col >= max_cols:
+                col = 0
+                row += 1
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._relayout_grid()
 
     def update_apps(self, apps: list):
         self.apps = apps
-        if self._show_category_filter:
-            current_text = self.category_combo.currentText()
-            self.category_combo.blockSignals(True)
-            self.category_combo.clear()
-            self.category_combo.addItem("Todas las categorías", "all")
-            categories = app_category_manager.get_all_categories(apps)
-            for cat in categories:
-                if cat and cat != DEFAULT_CATEGORY:
-                    self.category_combo.addItem(cat, cat)
-            idx = self.category_combo.findText(current_text)
-            if idx >= 0:
-                self.category_combo.setCurrentIndex(idx)
-            self.category_combo.blockSignals(False)
         self._render_apps()
-        self._update_count()
 
     def _launch(self, app_info, card):
         card.flash()

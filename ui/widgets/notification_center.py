@@ -140,10 +140,9 @@ class NotificationCenterDialog(QDialog):
         t = self._tokens
         card = QFrame()
         card.setObjectName("Section")
-        border_color = t.warning if not notif.read else "transparent"
-        card.setStyleSheet(
-            f"QFrame#Section {{ border-left: 4px solid {border_color}; }}"
-        )
+        card.setProperty("unread", not notif.read)
+        card.style().unpolish(card)
+        card.style().polish(card)
 
         layout = QHBoxLayout(card)
         layout.setContentsMargins(t.space_3, t.space_2, t.space_3, t.space_2)
@@ -152,7 +151,8 @@ class NotificationCenterDialog(QDialog):
         glyph = LEVEL_GLYPHS.get(notif.level, LEVEL_GLYPHS[NotificationLevel.INFO])
         color = _level_color(notif.level)
         icon_label = QLabel(glyph)
-        icon_label.setStyleSheet(f"color: {color}; font-size: 18px; background: transparent;")
+        icon_label.setObjectName("NotificationIcon")
+        icon_label.setStyleSheet(f"color: {color};")
         icon_label.setFixedWidth(28)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignTop)
         layout.addWidget(icon_label, 0, Qt.AlignmentFlag.AlignTop)
@@ -162,25 +162,18 @@ class NotificationCenterDialog(QDialog):
 
         title_row = QHBoxLayout()
         title = QLabel(notif.title)
-        title.setStyleSheet(
-            f"color: {t.text_primary}; font-weight: {t.weight_bold}; "
-            f"font-size: {t.type_sm}px;"
-        )
+        title.setObjectName("NotificationTitle")
         title.setWordWrap(True)
         title_row.addWidget(title, 1)
 
         time_lbl = QLabel(notif.time_str())
-        time_lbl.setStyleSheet(
-            f"color: {t.text_muted}; font-size: {t.type_xs}px;"
-        )
+        time_lbl.setObjectName("NotificationTime")
         title_row.addWidget(time_lbl, 0, Qt.AlignmentFlag.AlignRight)
         text_layout.addLayout(title_row)
 
         if notif.message:
             msg = QLabel(notif.message)
-            msg.setStyleSheet(
-                f"color: {t.text_secondary}; font-size: {t.type_xs}px;"
-            )
+            msg.setObjectName("NotificationMessage")
             msg.setWordWrap(True)
             text_layout.addWidget(msg)
 
@@ -219,13 +212,9 @@ class NotificationBell(QPushButton):
 
     def _update_style(self):
         unread = notification_manager.get_unread_count()
-        color = self._tokens.warning if unread > 0 else self._tokens.text_muted
-        self.setStyleSheet(f"""
-            QPushButton#NotificationBell {{
-                color: {color};
-                font-size: 24px;
-            }}
-        """)
+        self.setProperty("unread", unread > 0)
+        self.style().unpolish(self)
+        self.style().polish(self)
 
     def _on_new_notification(self, _):
         self._update_style()

@@ -22,26 +22,13 @@ LEVEL_GLYPHS = {
 }
 
 
-def _level_color(level: NotificationLevel) -> str:
-    t = theme_manager.current_tokens()
-    return {
-        NotificationLevel.INFO: t.info,
-        NotificationLevel.WARNING: t.warning,
-        NotificationLevel.ERROR: t.danger,
-        NotificationLevel.SUCCESS: t.success,
-        NotificationLevel.MEETING: t.meeting,
-    }.get(level, t.info)
-
-
-def _level_dark_color(level: NotificationLevel) -> str:
-    t = theme_manager.current_tokens()
-    return {
-        NotificationLevel.INFO: t.accent_pressed,
-        NotificationLevel.WARNING: t.accent_pressed,
-        NotificationLevel.ERROR: t.accent_pressed,
-        NotificationLevel.SUCCESS: t.accent_pressed,
-        NotificationLevel.MEETING: t.accent_pressed,
-    }.get(level, t.accent_pressed)
+LEVEL_PROPERTY = {
+    NotificationLevel.INFO: "info",
+    NotificationLevel.WARNING: "warning",
+    NotificationLevel.ERROR: "error",
+    NotificationLevel.SUCCESS: "success",
+    NotificationLevel.MEETING: "meeting",
+}
 
 
 DEFAULT_DURATION_MS = 6000
@@ -59,7 +46,8 @@ class ToastNotification(QFrame):
         self.duration_ms = duration_ms
         self._tokens = theme_manager.current_tokens()
         self._build()
-        self._apply_style()
+        self._apply_level()
+        theme_manager.register_listener(self._on_theme_changed)
 
     def _build(self):
         self.setObjectName("ToastNotification")
@@ -76,7 +64,7 @@ class ToastNotification(QFrame):
         self.icon_label.setObjectName("ToastIcon")
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignTop)
         font = QFont(self._tokens.font_family_body)
-        font.setPointSizeF(20.0)
+        font.setPointSizeF(self._tokens.type_lg)
         font.setBold(True)
         self.icon_label.setFont(font)
         self.icon_label.setFixedWidth(32)
@@ -89,7 +77,7 @@ class ToastNotification(QFrame):
         self.title_label.setObjectName("ToastTitle")
         self.title_label.setWordWrap(True)
         font_title = QFont(self._tokens.font_family_body)
-        font_title.setPointSizeF(self._tokens.type_sm * 0.75)
+        font_title.setPointSizeF(self._tokens.type_sm)
         font_title.setBold(True)
         self.title_label.setFont(font_title)
         text_layout.addWidget(self.title_label)
@@ -99,7 +87,7 @@ class ToastNotification(QFrame):
             self.message_label.setObjectName("ToastMessage")
             self.message_label.setWordWrap(True)
             font_msg = QFont(self._tokens.font_family_body)
-            font_msg.setPointSizeF(self._tokens.type_xs * 0.75)
+            font_msg.setPointSizeF(self._tokens.type_xs)
             self.message_label.setFont(font_msg)
             text_layout.addWidget(self.message_label)
 
@@ -125,62 +113,24 @@ class ToastNotification(QFrame):
         self.opacity_effect.setOpacity(0.0)
         self.setGraphicsEffect(self.opacity_effect)
 
-    def _apply_style(self):
-        level = self.notification.level
-        bg = _level_color(level)
-        border = _level_dark_color(level)
-        t = self._tokens
+    def _apply_level(self):
+        level_value = LEVEL_PROPERTY.get(
+            self.notification.level, LEVEL_PROPERTY[NotificationLevel.INFO]
+        )
+        self.setProperty("level", level_value)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        for child in self.findChildren(QWidget):
+            child.style().unpolish(child)
+            child.style().polish(child)
 
-        self.setStyleSheet(f"""
-            #ToastNotification {{
-                background-color: {bg};
-                border: 1px solid {border};
-                border-radius: {t.card_radius}px;
-                color: {t.text_on_accent};
-            }}
-            #ToastTitle {{
-                color: {t.text_on_accent};
-                background: transparent;
-                border: none;
-            }}
-            #ToastMessage {{
-                color: {t.text_on_accent};
-                opacity: 0.92;
-                background: transparent;
-                border: none;
-            }}
-            #ToastIcon {{
-                color: {t.text_on_accent};
-                background: transparent;
-                border: none;
-            }}
-            #ToastCloseButton {{
-                background-color: rgba(0, 0, 0, 0.15);
-                color: {t.text_on_accent};
-                border: none;
-                border-radius: 14px;
-                font-weight: bold;
-                font-size: 14px;
-            }}
-            #ToastCloseButton:hover {{
-                background-color: rgba(0, 0, 0, 0.3);
-            }}
-            #ToastActionButton {{
-                background-color: rgba(255, 255, 255, 0.2);
-                color: {t.text_on_accent};
-                border: 1px solid rgba(255, 255, 255, 0.4);
-                border-radius: 6px;
-                padding: 6px 12px;
-                font-weight: bold;
-                margin-top: 4px;
-            }}
-            #ToastActionButton:hover {{
-                background-color: rgba(255, 255, 255, 0.3);
-            }}
-            #ToastActionButton:pressed {{
-                background-color: rgba(255, 255, 255, 0.4);
-            }}
-        """)
+    def _on_theme_changed(self, theme_id: str):
+        self._tokens = theme_manager.current_tokens()
+        self.style().unpolish(self)
+        self.style().polish(self)
+        for child in self.findChildren(QWidget):
+            child.style().unpolish(child)
+            child.style().polish(child)
 
     def show_animated(self):
         self.opacity_effect.setOpacity(0.0)

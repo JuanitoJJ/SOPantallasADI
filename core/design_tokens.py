@@ -11,6 +11,8 @@ class ThemeTokens:
     surface_raised: str
     surface_overlay: str
     surface_inverse: str
+    surface_card: str
+    surface_card_hover: str
 
     text_primary: str
     text_secondary: str
@@ -52,6 +54,9 @@ class ThemeTokens:
     type_md: int
     type_sm: int
     type_xs: int
+    type_clock: int
+    type_date: int
+    type_badge_label: int
 
     weight_regular: int
     weight_semibold: int
@@ -83,6 +88,8 @@ DARK = ThemeTokens(
     surface_raised="#1F2530",
     surface_overlay="#2A3140",
     surface_inverse="#EDE7DC",
+    surface_card="#363E4B",
+    surface_card_hover="#465060",
     text_primary="#EDE7DC",
     text_secondary="#A7AEB9",
     text_muted="#6C7585",
@@ -106,9 +113,9 @@ DARK = ThemeTokens(
     dialog_radius=16,
     button_min_height=56,
     input_min_height=48,
-    font_family_display="Segoe UI Variable Display",
-    font_family_body="Segoe UI Variable Text",
-    font_family_mono="Cascadia Mono",
+    font_family_display="Inter",
+    font_family_body="Inter",
+    font_family_mono="Inter",
     type_display=120,
     type_3xl=64,
     type_2xl=40,
@@ -117,6 +124,9 @@ DARK = ThemeTokens(
     type_md=16,
     type_sm=14,
     type_xs=12,
+    type_clock=90,
+    type_date=21,
+    type_badge_label=11,
     weight_regular=400,
     weight_semibold=600,
     weight_bold=700,
@@ -141,6 +151,8 @@ LIGHT = ThemeTokens(
     surface_raised="#FBF7F0",
     surface_overlay="#FFFFFF",
     surface_inverse="#1F2530",
+    surface_card="#FFFFFF",
+    surface_card_hover="#EFE9DD",
     text_primary="#1F2530",
     text_secondary="#4A5260",
     text_muted="#8A8E97",
@@ -164,9 +176,9 @@ LIGHT = ThemeTokens(
     dialog_radius=16,
     button_min_height=56,
     input_min_height=48,
-    font_family_display="Segoe UI Variable Display",
-    font_family_body="Segoe UI Variable Text",
-    font_family_mono="Cascadia Mono",
+    font_family_display="Inter",
+    font_family_body="Inter",
+    font_family_mono="Inter",
     type_display=120,
     type_3xl=64,
     type_2xl=40,
@@ -175,6 +187,9 @@ LIGHT = ThemeTokens(
     type_md=16,
     type_sm=14,
     type_xs=12,
+    type_clock=90,
+    type_date=21,
+    type_badge_label=11,
     weight_regular=400,
     weight_semibold=600,
     weight_bold=700,
@@ -199,6 +214,8 @@ HIGH_CONTRAST = ThemeTokens(
     surface_raised="#0A0A0A",
     surface_overlay="#141414",
     surface_inverse="#FFFFFF",
+    surface_card="#1A1A1A",
+    surface_card_hover="#2C2C2C",
     text_primary="#FFFFFF",
     text_secondary="#FFFFFF",
     text_muted="#FFD400",
@@ -222,9 +239,9 @@ HIGH_CONTRAST = ThemeTokens(
     dialog_radius=4,
     button_min_height=56,
     input_min_height=48,
-    font_family_display="Segoe UI",
-    font_family_body="Segoe UI",
-    font_family_mono="Consolas",
+    font_family_display="Inter",
+    font_family_body="Inter",
+    font_family_mono="Inter",
     type_display=130,
     type_3xl=64,
     type_2xl=40,
@@ -233,6 +250,9 @@ HIGH_CONTRAST = ThemeTokens(
     type_md=16,
     type_sm=14,
     type_xs=12,
+    type_clock=98,
+    type_date=22,
+    type_badge_label=11,
     weight_regular=400,
     weight_semibold=600,
     weight_bold=700,

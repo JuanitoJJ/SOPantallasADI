@@ -23,6 +23,7 @@ from ui.widgets.volume_control import VolumeControl
 from ui.widgets.app_grid import AppGrid
 from ui.widgets.toast_notification import ToastContainer
 from ui.widgets.notification_center import NotificationBell
+from ui.animations import DURATIONS, staggered_fade_in
 from ui.hdmi_viewer_window import HDMIViewerWindow
 from core.calendar_manager import CalendarManager
 from core.path_utils import get_resource_path
@@ -270,10 +271,8 @@ class MainWindow(QMainWindow):
 
     def adjust_text_contrast(self, is_light_bg: bool):
         t = self.tokens
-        text_color = t.text_primary
-        date_color = t.text_secondary
         shadow_color = t.surface_inverse
-        cal_title_color = t.meeting
+        cal_title_color = "#FFFFFF"
         signature_color = t.text_muted
 
         def apply_style(label, color, shadow_col):
@@ -285,11 +284,6 @@ class MainWindow(QMainWindow):
                 effect.setColor(QColor(shadow_col))
                 effect.setBlurRadius(4 if is_light_bg else 2)
 
-        if hasattr(self, 'header'):
-            apply_style(self.header, text_color, shadow_color)
-        if hasattr(self, 'clock_widget'):
-            apply_style(self.clock_widget.clock_label, text_color, shadow_color)
-            apply_style(self.clock_widget.date_label, date_color, shadow_color)
         if hasattr(self, 'signature'):
             apply_style(self.signature, signature_color, shadow_color)
         if hasattr(self, 'cal_title') and self.cal_title is not None:
@@ -321,7 +315,7 @@ class MainWindow(QMainWindow):
         self.central_widget.setGraphicsEffect(self.opacity_effect)
 
         self.animation = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.animation.setDuration(800)
+        self.animation.setDuration(DURATIONS["extra_slow"])
         self.animation.setStartValue(0.0)
         self.animation.setEndValue(1.0)
         self.animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
@@ -330,32 +324,29 @@ class MainWindow(QMainWindow):
 
         # Layout horizontal principal (Apps a la izquierda, Calendario a la derecha)
         self.content_layout = QHBoxLayout(self.central_widget)
-        self.content_layout.setContentsMargins(60, 40, 60, 40)
+        self.content_layout.setContentsMargins(60, 24, 60, 40)
         self.content_layout.setSpacing(40)
 
         # --- LADO IZQUIERDO: APPS Y CONTROLES ---
         left_panel = QVBoxLayout()
         self.content_layout.addLayout(left_panel, 3)
 
-        # Cabecera con nombre + campana de notificaciones
-        header_row = QHBoxLayout()
-        self.header = QLabel(self.config_manager.config.get("corporate_name", "SALA DE REUNIONES"))
-        self.header.setObjectName("HeaderLabel")
-        self.header.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        apply_text_outline(self.header)
-        header_row.addWidget(self.header, 1)
-
+        bell_row = QHBoxLayout()
         self.notification_bell = NotificationBell(self)
-        header_row.addWidget(self.notification_bell, 0, Qt.AlignmentFlag.AlignRight)
+        bell_row.addStretch()
+        bell_row.addWidget(self.notification_bell, 0, Qt.AlignmentFlag.AlignRight)
+        left_panel.addLayout(bell_row)
 
-        left_panel.addLayout(header_row)
-
-        # Widget de Reloj + Fecha (extraído)
         self.clock_widget = ClockWidget(self, show_date=True)
         self.clock_widget.update()
         left_panel.addWidget(self.clock_widget)
 
-        # Espaciador
+        self.header = QLabel(self.config_manager.config.get("corporate_name", "SALA DE REUNIONES"))
+        self.header.setObjectName("HeaderLabel")
+        self.header.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.header.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        left_panel.addWidget(self.header)
+
         left_panel.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
 
         # Contenedor de Apps (Grid extraído)
@@ -379,22 +370,18 @@ class MainWindow(QMainWindow):
 
         controls_layout.addStretch()
 
-        # Botón "Compartir pantalla" (HDMI Input)
-        # Separado del grid de apps para que las apps del sistema y esta
-        # función especial estén visual y conceptualmente diferenciadas.
         self.share_screen_btn = QPushButton("🖥  Compartir pantalla")
         self.share_screen_btn.setObjectName("ShareScreenButton")
-        self.share_screen_btn.setMinimumHeight(60)
         self.share_screen_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.share_screen_btn.clicked.connect(self._open_hdmi_viewer)
         self.share_screen_btn.setVisible(self.config_manager.is_hdmi_enabled())
         controls_layout.addWidget(self.share_screen_btn)
 
-        controls_layout.addSpacing(15)
+        controls_layout.addSpacing(self.tokens.space_3)
 
-        self.shutdown_btn = QPushButton("Apagar Equipo")
+        self.shutdown_btn = QPushButton("⏻  Apagar equipo")
         self.shutdown_btn.setObjectName("ShutdownButton")
-        self.shutdown_btn.setMinimumHeight(60)
+        self.shutdown_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.shutdown_btn.clicked.connect(self.shutdown_pc)
         controls_layout.addWidget(self.shutdown_btn)
 
@@ -448,7 +435,7 @@ class MainWindow(QMainWindow):
             f"font-family: \"{self.tokens.font_family_display}\"; "
             f"font-size: {self.tokens.type_lg}px; "
             f"font-weight: {self.tokens.weight_bold}; "
-            f"color: {self.tokens.meeting}; "
+            f"color: #FFFFFF; "
             f"letter-spacing: 2px; "
             f"margin-top: {self.tokens.space_4}px;"
         )
@@ -583,32 +570,28 @@ class MainWindow(QMainWindow):
             empty_layout.setSpacing(self.tokens.space_2)
 
             headline = QLabel("Sala libre")
-            headline.setStyleSheet(
-                f"color: {self.tokens.room_free}; "
-                f"font-family: \"{self.tokens.font_family_display}\"; "
-                f"font-size: {self.tokens.type_2xl}px; "
-                f"font-weight: {self.tokens.weight_bold};"
-            )
+            headline.setObjectName("EmptyHeadline")
             empty_layout.addWidget(headline)
 
             subline = QLabel("Sin reuniones programadas para hoy.")
-            subline.setStyleSheet(
-                f"color: {self.tokens.text_secondary}; "
-                f"font-size: {self.tokens.type_md}px;"
-            )
+            subline.setObjectName("EmptySubline")
             empty_layout.addWidget(subline)
 
             hint = QLabel("Reserva una reunión desde Outlook para que aparezca aquí.")
+            hint.setObjectName("EmptyHint")
             hint.setWordWrap(True)
-            hint.setStyleSheet(
-                f"color: {self.tokens.text_muted}; "
-                f"font-size: {self.tokens.type_sm}px; "
-                f"font-style: italic;"
-            )
             empty_layout.addWidget(hint)
 
             self.meetings_container.addWidget(empty_container)
             return
+
+        now = datetime.now()
+        alert_minutes = 5
+        try:
+            alert_settings = self.config_manager.get_notification_settings()
+            alert_minutes = int(alert_settings.get("alert_minutes_before", 5))
+        except Exception:
+            pass
 
         for idx, mtg in enumerate(meetings[:5]):
             card = QFrame()
@@ -622,12 +605,7 @@ class MainWindow(QMainWindow):
 
             subject_text = mtg.get('subject', 'Sin Título')
             subject = QLabel(subject_text)
-            subject.setStyleSheet(
-                f"color: {self.tokens.text_primary}; "
-                f"font-family: \"{self.tokens.font_family_display}\"; "
-                f"font-weight: {self.tokens.weight_semibold}; "
-                f"font-size: {self.tokens.type_md}px;"
-            )
+            subject.setObjectName("MeetingSubject")
             subject.setWordWrap(True)
 
             try:
@@ -650,17 +628,29 @@ class MainWindow(QMainWindow):
                     time_text = start_dt_local.strftime("%H:%M")
 
                 time_label = QLabel(time_text)
-                time_label.setStyleSheet(
-                    f"color: {self.tokens.text_secondary}; "
-                    f"font-family: \"{self.tokens.font_family_mono}\"; "
-                    f"font-size: {self.tokens.type_sm}px;"
-                )
+                time_label.setObjectName("MeetingTime")
+
+                start_dt = start_dt_local
+                end_dt = end_dt_local
+                now_cmp = now.astimezone() if start_dt.tzinfo is not None else now
+                if end_dt is not None and end_dt.tzinfo is None and start_dt.tzinfo is not None:
+                    end_dt = end_dt.astimezone(start_dt.tzinfo)
+
+                if end_dt is not None and start_dt <= now_cmp < end_dt:
+                    card.setProperty("ongoing", True)
+                elif start_dt > now_cmp:
+                    try:
+                        minutes_until = (start_dt - now_cmp).total_seconds() / 60
+                        if minutes_until <= alert_minutes:
+                            card.setProperty("imminent", True)
+                    except Exception:
+                        pass
             except Exception:
                 time_label = QLabel("Hora no disponible")
-                time_label.setStyleSheet(
-                    f"color: {self.tokens.text_muted}; "
-                    f"font-size: {self.tokens.type_sm}px;"
-                )
+                time_label.setObjectName("MeetingTime")
+
+            card.style().unpolish(card)
+            card.style().polish(card)
 
             card_layout.addWidget(subject)
             card_layout.addWidget(time_label)
@@ -676,7 +666,7 @@ class MainWindow(QMainWindow):
 
             self.meetings_container.addWidget(card)
 
-            self._animate_card_in(card, delay_ms=idx * 80)
+            self._animate_card_in(card, delay_ms=idx * DURATIONS["instant"])
 
     def _animate_card_in(self, widget, delay_ms: int = 0):
         """Aplica un fade-in suave a un widget con un retraso opcional."""
@@ -686,7 +676,7 @@ class MainWindow(QMainWindow):
 
         def start_anim():
             anim = QPropertyAnimation(effect, b"opacity")
-            anim.setDuration(350)
+            anim.setDuration(DURATIONS["normal"])
             anim.setStartValue(0.0)
             anim.setEndValue(1.0)
             anim.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -743,10 +733,15 @@ class MainWindow(QMainWindow):
             parent=self,
         )
         if dlg.exec():
+            notification_manager.notify(
+                level=NotificationLevel.INFO,
+                title="Apagando equipo…",
+                message="El equipo se apagará en breve.",
+            )
             close_all_launched_apps()
             self._close_hdmi_viewer()
             import subprocess
-            subprocess.Popen("shutdown -s -t 00", shell=True)
+            QTimer.singleShot(800, lambda: subprocess.Popen("shutdown -s -t 00", shell=True))
 
     def _open_hdmi_viewer(self):
         """Abre la ventana flotante del viewer HDMI."""
