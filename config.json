@@ -17,6 +17,12 @@
             "path": "C:\\Program Files (x86)\\AnyDesk-ad_d937c49d_msi\\AnyDesk-ad_d937c49d_msi.exe",
             "icon": "assets/icons\\AnyDesk-ad_d937c49d_msi.png",
             "category": "Sin categor\u00eda"
+        },
+        {
+            "name": "MyViewBoard",
+            "path": "shell:AppsFolder\\8df0095f-e86a-41f8-a95b-f78c4f33ef08_5nn9p46j8xz7t!App",
+            "icon": "assets/icons\\monitor.svg",
+            "category": "Sin categor\u00eda"
         }
     ],
     "corporate_name": "Sala 2 ADI",

@@ -2,6 +2,7 @@ import subprocess
 import os
 import psutil
 import ctypes
+import shlex
 
 from core.audit import log_app_launched, log_app_closed, log_app_launch_failed
 from core.logger import get_logger
@@ -16,6 +17,36 @@ SW_RESTORE = 9
 _launched_processes = []
 
 
+def _is_windows_shortcut(path: str) -> bool:
+    return os.path.splitext(path)[1].lower() == ".lnk"
+
+
+def _is_shell_activation_path(path: str) -> bool:
+    return path.lower().startswith("shell:")
+
+
+def _resolve_windows_shortcut(path: str):
+    """Resuelve un acceso directo de Windows a su destino, si es posible."""
+    if not path or not _is_windows_shortcut(path):
+        return None
+    try:
+        import comtypes.client
+
+        shell = comtypes.client.CreateObject("WScript.Shell")
+        shortcut = shell.CreateShortcut(path)
+        target_path = shortcut.Targetpath or ""
+        arguments = shortcut.Arguments or ""
+        working_directory = shortcut.WorkingDirectory or ""
+        return {
+            "target_path": target_path,
+            "arguments": arguments,
+            "working_directory": working_directory,
+        }
+    except Exception as exc:
+        logger.debug("No se pudo resolver el acceso directo %s: %s", path, exc)
+        return None
+
+
 def _path_exists_robust(path: str) -> bool:
     """Comprueba si un path es ejecutable, incluyendo reparse points de MSIX.
 
@@ -26,6 +57,8 @@ def _path_exists_robust(path: str) -> bool:
     """
     if not path:
         return False
+    if _is_shell_activation_path(path):
+        return True
     try:
         if os.path.isfile(path):
             return True
@@ -83,6 +116,11 @@ def find_running_process_by_path(path):
 
     # Expandir variables de entorno (ej: %LocalAppData%)
     path = os.path.expandvars(path)
+    if _is_shell_activation_path(path):
+        return None
+    shortcut = _resolve_windows_shortcut(path)
+    if shortcut and shortcut.get("target_path"):
+        path = os.path.expandvars(shortcut["target_path"])
     if not _path_exists_robust(path) and not _is_msix_apps_shim(path):
         return None
 
@@ -167,27 +205,58 @@ def launch_application(app_info):
         
     path = app_info.get('path', '')
     expanded_path = os.path.expandvars(path)
+    if _is_shell_activation_path(expanded_path):
+        try:
+            os.startfile(expanded_path)
+            log_app_launched(
+                app_info.get('name', os.path.basename(expanded_path)),
+                expanded_path,
+                pid=None,
+            )
+            return None
+        except Exception as e:
+            error_msg = f"No se pudo abrir la aplicación:\n{e}"
+            log_app_launch_failed(
+                app_info.get('name', os.path.basename(expanded_path)),
+                expanded_path,
+                error=str(e),
+            )
+            return error_msg
+    shortcut = _resolve_windows_shortcut(expanded_path)
+    launch_path = os.path.expandvars(shortcut["target_path"]) if shortcut and shortcut.get("target_path") else expanded_path
+    launch_args = shortcut.get("arguments", "") if shortcut else ""
+    launch_cwd = os.path.expandvars(shortcut["working_directory"]) if shortcut and shortcut.get("working_directory") else None
     
     # 1. Verificar si ya hay una instancia corriendo en el sistema
-    existing_proc = find_running_process_by_path(expanded_path)
+    existing_proc = find_running_process_by_path(launch_path)
     if existing_proc:
-        activated = bring_app_to_front(existing_proc.pid, expanded_path)
+        activated = bring_app_to_front(existing_proc.pid, launch_path)
         if activated:
             # Sincronizar con la lista de seguimiento
             if not any(p['app_info'].get('path') == path for p in _launched_processes):
                 _launched_processes.append({'process': existing_proc, 'app_info': app_info})
             log_app_launched(
                 app_info.get('name', os.path.basename(expanded_path)),
-                expanded_path,
+                launch_path,
                 pid=existing_proc.pid,
             )
             return None
         else:
-            logger.info("El proceso %d (%s) está en ejecución pero no tiene ventanas visibles. Intentando relanzar para despertar.", existing_proc.pid, expanded_path)
+            logger.info("El proceso %d (%s) está en ejecución pero no tiene ventanas visibles. Intentando relanzar para despertar.", existing_proc.pid, launch_path)
 
     # 2. Si no está abierta (o si está corriendo en segundo plano sin ventanas visibles), lanzarla
     try:
-        if not _path_exists_robust(expanded_path):
+        if shortcut and shortcut.get("target_path"):
+            if not _path_exists_robust(launch_path) and not _is_msix_apps_shim(launch_path):
+                error_msg = f"No se encontró el destino del acceso directo:\n{launch_path}"
+                log_app_launch_failed(
+                    app_info.get('name', os.path.basename(expanded_path)),
+                    expanded_path,
+                    error=error_msg,
+                )
+                return error_msg
+
+        elif not _path_exists_robust(expanded_path):
             error_msg = f"No se encontró el ejecutable:\n{expanded_path}"
             log_app_launch_failed(
                 app_info.get('name', os.path.basename(expanded_path)),
@@ -196,11 +265,17 @@ def launch_application(app_info):
             )
             return error_msg
 
-        proc = subprocess.Popen(expanded_path)
+        if shortcut and shortcut.get("target_path"):
+            cmd = [launch_path]
+            if launch_args:
+                cmd.extend(shlex.split(launch_args, posix=False))
+            proc = subprocess.Popen(cmd, cwd=launch_cwd or None)
+        else:
+            proc = subprocess.Popen(expanded_path)
         _launched_processes.append({'process': proc, 'app_info': app_info})
         log_app_launched(
             app_info.get('name', os.path.basename(expanded_path)),
-            expanded_path,
+            launch_path,
             pid=proc.pid,
         )
         return None
@@ -208,7 +283,7 @@ def launch_application(app_info):
         error_msg = f"No se pudo abrir la aplicación:\n{e}"
         log_app_launch_failed(
             app_info.get('name', os.path.basename(expanded_path)),
-            expanded_path,
+            launch_path,
             error=str(e),
         )
         return error_msg

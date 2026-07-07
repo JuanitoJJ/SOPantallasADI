@@ -5,8 +5,8 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QGridLayout,
                              QHBoxLayout, QMessageBox, QGraphicsOpacityEffect,
                              QGraphicsDropShadowEffect)
 
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QUrl, QThread, pyqtSignal
-from PyQt6.QtGui import QDesktopServices, QColor, QImage
+from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QUrl, QThread, pyqtSignal, QSize
+from PyQt6.QtGui import QDesktopServices, QColor, QImage, QIcon
 from core.config_manager import ConfigManager
 from core.app_launcher import launch_application, close_all_launched_apps
 from core.logger import get_logger
@@ -92,6 +92,7 @@ class MainWindow(QMainWindow):
         self._ongoing_announced: set = set()
         self._hdmi_viewer: HDMIViewerWindow = None
         self.cal_title = None
+        self._myviewboard_app = self._get_configured_app("MyViewBoard")
 
         self.init_ui()
 
@@ -296,6 +297,12 @@ class MainWindow(QMainWindow):
                 effect.setColor(QColor(shadow_color))
                 effect.setBlurRadius(4 if is_light_bg else 2)
 
+    def _get_configured_app(self, name: str):
+        for app in self.config_manager.get_apps():
+            if app.get("name", "").strip().lower() == name.strip().lower():
+                return app
+        return None
+
     def init_ui(self):
         # Configuración de ventana
         self.setWindowTitle("Sistema Interactivo Sala de Reuniones")
@@ -354,6 +361,14 @@ class MainWindow(QMainWindow):
         # --- SECCIÓN DE CONTROLES INFERIORES ---
         controls_layout = QHBoxLayout()
 
+        self.myviewboard_btn = QPushButton("MyViewBoard")
+        self.myviewboard_btn.setObjectName("MyViewBoardButton")
+        self.myviewboard_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.myviewboard_btn.setMinimumHeight(self.tokens.button_min_height)
+        self.myviewboard_btn.clicked.connect(self._launch_myviewboard)
+        self._configure_myviewboard_button()
+        controls_layout.addWidget(self.myviewboard_btn)
+
         controls_layout.addStretch()
 
         self.share_screen_btn = QPushButton("🖥  Compartir pantalla")
@@ -387,14 +402,12 @@ class MainWindow(QMainWindow):
 
         footer_layout = QHBoxLayout()
 
-        self.signature = QLabel("Programado por Juan Jarque")
+        self.signature = QLabel("IT Department")
         self.signature.setObjectName("SignatureLabel")
-        apply_text_outline(self.signature)
         self.signature.setStyleSheet(
-            f"color: {self.tokens.text_muted}; "
+            f"font-family: \"{self.tokens.font_family_body}\"; "
             f"font-size: {self.tokens.type_xs}px; "
-            f"font-style: italic; "
-            f"letter-spacing: 1px;"
+            f"font-weight: {self.tokens.weight_semibold};"
         )
         footer_layout.addWidget(self.signature)
 
@@ -440,6 +453,36 @@ class MainWindow(QMainWindow):
         right_panel.addStretch()
 
         self.content_layout.addWidget(self.right_panel_widget, 1)
+
+    def _configure_myviewboard_button(self):
+        app = self._myviewboard_app
+        if not hasattr(self, "myviewboard_btn"):
+            return
+        if not app:
+            self.myviewboard_btn.setVisible(False)
+            return
+
+        self.myviewboard_btn.setVisible(True)
+        icon_path = app.get("icon", "")
+        if icon_path:
+            full_path = get_resource_path(icon_path)
+            if not os.path.exists(full_path):
+                full_path = icon_path
+            if os.path.exists(full_path):
+                self.myviewboard_btn.setIcon(QIcon(full_path))
+                self.myviewboard_btn.setIconSize(QSize(24, 24))
+        self.myviewboard_btn.setToolTip(app.get("name", "MyViewBoard"))
+
+    def _launch_myviewboard(self):
+        if not self._myviewboard_app:
+            return
+        error = launch_application(self._myviewboard_app)
+        if error:
+            notification_manager.notify(
+                level=NotificationLevel.ERROR,
+                title="Error al abrir MyViewBoard",
+                message=error,
+            )
 
     def update_time(self):
         if hasattr(self, 'clock_widget'):
@@ -686,13 +729,18 @@ class MainWindow(QMainWindow):
                 widget.setParent(None)
                 widget.deleteLater()
 
-        apps = self.config_manager.get_apps()
+        apps = [
+            app for app in self.config_manager.get_apps()
+            if app.get("name", "").strip().lower() != "myviewboard"
+        ]
         self.app_grid = AppGrid(
             apps,
             parent=self.apps_container,
             on_launch=self._on_launch_error,
         )
         self.grid_layout.addWidget(self.app_grid, 0, 0)
+        self._myviewboard_app = self._get_configured_app("MyViewBoard")
+        self._configure_myviewboard_button()
 
         # Mantener la visibilidad del botón "Compartir pantalla" sincronizada
         # con la configuración del admin.

@@ -228,7 +228,7 @@ class AdminPanelDialog(QDialog):
         self.remove_btn.clicked.connect(self.remove_selected_app)
         section_layout.addWidget(self.remove_btn)
 
-        add_section = make_section("Añadir Nueva Aplicación", layout, "Indica un nombre y la ruta del ejecutable. Pulsa 'Examinar...' para buscarlo.")
+        add_section = make_section("Añadir Nueva Aplicación", layout, "Indica un nombre y la ruta del ejecutable o acceso directo. Pulsa 'Examinar...' para buscarlo.")
         add_layout = add_section.layout()
 
         form_layout = QFormLayout()
@@ -239,7 +239,7 @@ class AdminPanelDialog(QDialog):
         self.name_input.setPlaceholderText("Nombre visible (ej: Microsoft Teams)")
 
         self.path_input = QLineEdit()
-        self.path_input.setPlaceholderText("C:\\Ruta\\al\\programa.exe")
+        self.path_input.setPlaceholderText("C:\\Ruta\\al\\programa.exe o acceso directo .lnk")
 
         browse_btn = QPushButton("📁 Examinar...")
         browse_btn.setMinimumHeight(40)
@@ -1090,7 +1090,7 @@ class AdminPanelDialog(QDialog):
     def browse_exe(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Seleccionar Ejecutable", "C:\\Program Files",
-            "Executables (*.exe)"
+            "Ejecutables y accesos directos (*.exe *.lnk);;Todos los archivos (*.*)"
         )
         if file_path:
             clean_path = file_path.replace("/", "\\")

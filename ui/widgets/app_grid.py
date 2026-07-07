@@ -5,15 +5,13 @@ from PyQt6.QtCore import Qt, QSize, QTimer, QRect, QPropertyAnimation
 from PyQt6.QtGui import QIcon
 import os
 from core.app_launcher import launch_application
-from core.app_categories import DEFAULT_CATEGORY
 from core.path_utils import get_resource_path
 from core.theme_manager import theme_manager
-from ui.widgets import apply_text_outline
 from ui.animations import staggered_fade_in, DURATIONS, EASING
 
 
 class AppCard(QPushButton):
-    """Botón de app con icono, nombre y categoría."""
+    """Botón de app con icono."""
 
     def __init__(self, app_info: dict, parent=None):
         super().__init__(parent)
@@ -23,37 +21,22 @@ class AppCard(QPushButton):
         self.setFixedSize(110, 110)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip(app_info.get("name", ""))
+        self.setAccessibleName(app_info.get("name", ""))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(
-            self._tokens.space_2, self._tokens.space_2,
-            self._tokens.space_2, self._tokens.space_2
+            self._tokens.space_3, self._tokens.space_3,
+            self._tokens.space_3, self._tokens.space_3
         )
-        layout.setSpacing(self._tokens.space_1)
+        layout.setSpacing(0)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.icon_label = QLabel()
         self.icon_label.setObjectName("AppIconLabel")
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.icon_label.setMinimumHeight(45)
-        layout.addWidget(self.icon_label, 1)
-
-        self.name_label = QLabel(app_info.get("name", ""))
-        self.name_label.setObjectName("AppNameLabel")
-        self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.name_label.setWordWrap(True)
-        apply_text_outline(self.name_label)
-        layout.addWidget(self.name_label)
-
-        category = app_info.get("category", DEFAULT_CATEGORY)
-        if category and category != DEFAULT_CATEGORY:
-            self.category_label = QLabel(category)
-            self.category_label.setObjectName("AppCategoryLabel")
-            self.category_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            apply_text_outline(self.category_label, blur_radius=1)
-            layout.addWidget(self.category_label)
-        else:
-            self.category_label = None
+        self.icon_label.setMinimumHeight(68)
+        layout.addWidget(self.icon_label, 1, Qt.AlignmentFlag.AlignCenter)
 
         self._load_icon()
 
@@ -64,7 +47,7 @@ class AppCard(QPushButton):
             if not os.path.exists(full_path):
                 full_path = icon_path
             if os.path.exists(full_path):
-                pix = QIcon(full_path).pixmap(QSize(45, 45))
+                pix = QIcon(full_path).pixmap(QSize(56, 56))
                 if not pix.isNull():
                     self.icon_label.setPixmap(pix)
                     return
