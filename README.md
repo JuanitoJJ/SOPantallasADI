@@ -1,6 +1,6 @@
 # SOPantallasADI — Sistema de Kiosco para Salas de Reuniones
 
-Aplicación de interfaz táctil (kiosko) para pantallas de salas de reuniones corporativas. Lanzador de aplicaciones, calendario Microsoft 365, control de volumen, screensaver premium, notificaciones y panel de administración.
+Aplicación de interfaz táctil (kiosko) para pantallas de salas de reuniones corporativas. Lanzador de aplicaciones, calendario Microsoft 365, screensaver premium, notificaciones y panel de administración.
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue) ![PyQt6](https://img.shields.io/badge/PyQt6-6.11-green) ![Windows](https://img.shields.io/badge/Platform-Windows-lightgrey)
 
@@ -60,16 +60,10 @@ Aplicación de interfaz táctil (kiosko) para pantallas de salas de reuniones co
 - Calendario de la sala o del usuario autenticado
 - Parseo correcto de timezones con `zoneinfo`
 
-### Control de volumen
-- Slider horizontal táctil (handle 44x44px)
-- Integración con Windows Core Audio API (`pycaw`)
-
 ### Notificaciones
 - **Toasts animados** (5 niveles: info, warning, error, success, meeting)
-- **Campana** en header con badge de "sin leer"
-- **Centro de notificaciones** con historial completo
+- **Historial interno** persistente en JSON
 - **Sonidos configurables** (WAV/MP3) con `winsound` + `QtMultimedia` fallback
-- Persistencia del historial en JSON
 
 ### Alertas de reuniones
 - Aviso **5 minutos antes** de cada reunión de Teams
@@ -119,7 +113,7 @@ Aplicación de interfaz táctil (kiosko) para pantallas de salas de reuniones co
 | **Lenguaje** | Python 3.8+ |
 | **GUI** | PyQt6 6.11 |
 | **API Microsoft** | msal 1.36, requests 2.33 |
-| **Audio** | pycaw, winsound |
+| **Audio** | winsound, QtMultimedia |
 | **Procesos** | psutil 7.2 |
 | **Auth kiosco** | Windows API nativo (ctypes) |
 | **Persistencia** | SQLite 3, JSON |
@@ -192,9 +186,8 @@ python main.py
 ### Pantalla principal
 
 La pantalla principal muestra:
-- **Izquierda**: nombre corporativo, reloj grande, fecha, grid de apps, volumen, controles
+- **Izquierda**: nombre corporativo, reloj grande, fecha, grid de apps, controles
 - **Derecha**: reuniones de hoy (si calendario está habilitado)
-- **Esquina superior derecha**: campana de notificaciones
 - **Esquina inferior derecha**: botón "Admin"
 
 ### Acciones del usuario
@@ -204,8 +197,6 @@ La pantalla principal muestra:
 | Tocar una app | La lanza o la trae al frente |
 | Botón "Aplicaciones Abiertas" | Diálogo con apps en ejecución |
 | Botón "Finalizar Reunión" | Cierra todas las apps lanzadas (con confirmación) |
-| Slider de volumen | Ajusta volumen del sistema |
-| Tocar campana | Abre centro de notificaciones |
 | Tocar notificación "Unirse" | Abre la URL de Teams en navegador |
 | Sin tocar 5 min | Activa screensaver |
 | Tocar screensaver | Vuelve a la app |
@@ -259,7 +250,6 @@ QTimer 60s en MainWindow
                    └─► Por cada reunión próxima:
                        ├─► notification_manager.notify(level=MEETING, ...)
                        │   └─► ToastContainer muestra toast animado
-                       │   └─► NotificationBell actualiza badge
                        │   └─► Sonido (si habilitado)
                        └─► audit.log_meeting_alert()
 ```
@@ -525,10 +515,6 @@ pyinstaller SOPantallas.spec
 ### Token expirado
 - Aparece aviso "Sesión caducada"
 - Solución: Admin → Calendario → "Iniciar Vinculación" (Device Flow)
-
-### No aparece la campana de notificaciones
-- Solo aparece si hay calendar_manager activo y el header está visible
-- Verificar `calendar_enabled: true`
 
 ### La app crashea al iniciar
 - Revisar `logs/sopantallas.log` para detalles

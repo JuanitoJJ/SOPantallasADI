@@ -196,30 +196,3 @@ class NotificationCenterDialog(QDialog):
         notification_manager.clear()
         self.refresh()
 
-
-class NotificationBell(QPushButton):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._tokens = theme_manager.current_tokens()
-        self.setObjectName("NotificationBell")
-        self.setText("🔔")
-        self.setFixedSize(56, 56)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._update_style()
-        self.clicked.connect(self._on_clicked)
-        notification_manager.add_listener(self._on_new_notification)
-        theme_manager.register_listener(lambda _: self._update_style())
-
-    def _update_style(self):
-        unread = notification_manager.get_unread_count()
-        self.setProperty("unread", unread > 0)
-        self.style().unpolish(self)
-        self.style().polish(self)
-
-    def _on_new_notification(self, _):
-        self._update_style()
-
-    def _on_clicked(self):
-        dlg = NotificationCenterDialog(self)
-        dlg.exec()
-        self._update_style()

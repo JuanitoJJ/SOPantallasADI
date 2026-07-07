@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QFrame, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QSlider,
+    QFrame, QLabel, QVBoxLayout, QHBoxLayout, QPushButton,
     QSizePolicy, QWidget
 )
 from PyQt6.QtCore import Qt
@@ -86,26 +86,6 @@ class AdminPreviewFrame(QFrame):
 
         layout.addLayout(apps_row)
         layout.addStretch()
-
-        volume_row = QHBoxLayout()
-        vol_label = QLabel("Vol:")
-        vol_label.setStyleSheet("color: #bdc3c7; font-size: 11px; background: transparent;")
-        volume_row.addWidget(vol_label)
-
-        self.volume_slider = QSlider(Qt.Orientation.Horizontal)
-        self.volume_slider.setRange(0, 100)
-        self.volume_slider.setValue(50)
-        self.volume_slider.setMaximumWidth(200)
-        self.volume_slider.setStyleSheet(
-            "QSlider::groove:horizontal { background: #2c3e50; height: 6px; border-radius: 3px; }"
-            "QSlider::sub-page:horizontal { background: #3498db; border-radius: 3px; }"
-            "QSlider::handle:horizontal { background: #3498db; width: 16px; height: 16px; "
-            "margin: -5px 0; border-radius: 8px; }"
-        )
-        volume_row.addWidget(self.volume_slider)
-        volume_row.addStretch()
-
-        layout.addLayout(volume_row)
 
     def update_corporate_name(self, name: str):
         if name:

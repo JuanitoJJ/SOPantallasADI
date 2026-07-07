@@ -181,22 +181,29 @@ class CalendarManager:
         return meetings
 
     @staticmethod
-    def parse_meeting_datetime(mtg: dict) -> datetime:
-        """Parsea el campo start.dateTime de Graph API a un datetime local."""
-        start_raw = mtg.get('start', {}).get('dateTime', '').split('.')[0]
-        if not start_raw:
+    def _parse_graph_datetime(field: dict) -> datetime:
+        raw = field.get('dateTime', '').split('.')[0]
+        if not raw:
             return None
         try:
-            start_naive = datetime.strptime(start_raw, "%Y-%m-%dT%H:%M:%S")
+            parsed = datetime.strptime(raw, "%Y-%m-%dT%H:%M:%S")
         except ValueError:
             return None
-        start_tz_name = mtg.get('start', {}).get('timeZone', '')
+
+        tz_name = field.get('timeZone', '')
         try:
-            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-            tz = ZoneInfo(start_tz_name) if start_tz_name else None
-            return start_naive.replace(tzinfo=tz).astimezone() if tz else start_naive
+            from zoneinfo import ZoneInfo
+            if tz_name:
+                tz = ZoneInfo(tz_name)
+                return parsed.replace(tzinfo=tz).astimezone().replace(tzinfo=None)
         except Exception:
-            return start_naive
+            pass
+        return parsed
+
+    @staticmethod
+    def parse_meeting_datetime(mtg: dict) -> datetime:
+        """Parsea el campo start.dateTime de Graph API a hora local."""
+        return CalendarManager._parse_graph_datetime(mtg.get('start', {}))
 
     @staticmethod
     def get_meeting_join_url(mtg: dict) -> str:
@@ -222,12 +229,7 @@ class CalendarManager:
                 continue
             delta = (start_dt - now).total_seconds() / 60.0
             if 0 <= delta <= minutes_ahead:
-                end_raw = mtg.get('end', {}).get('dateTime', '').split('.')[0]
-                end_dt = None
-                try:
-                    end_dt = datetime.strptime(end_raw, "%Y-%m-%dT%H:%M:%S")
-                except ValueError:
-                    end_dt = None
+                end_dt = self._parse_graph_datetime(mtg.get('end', {}))
                 alerts.append({
                     "id": mtg_id,
                     "subject": mtg.get('subject', 'Sin título'),
@@ -249,10 +251,8 @@ class CalendarManager:
             start_dt = self.parse_meeting_datetime(mtg)
             if not start_dt:
                 continue
-            end_raw = mtg.get('end', {}).get('dateTime', '').split('.')[0]
-            try:
-                end_dt = datetime.strptime(end_raw, "%Y-%m-%dT%H:%M:%S")
-            except ValueError:
+            end_dt = self._parse_graph_datetime(mtg.get('end', {}))
+            if not end_dt:
                 continue
             if start_dt <= now <= end_dt:
                 ongoing.append({

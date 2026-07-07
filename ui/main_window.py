@@ -2,14 +2,13 @@ import os
 import sys
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QGridLayout,
                              QPushButton, QLabel, QFrame, QSpacerItem, QSizePolicy,
-                             QSlider, QHBoxLayout, QMessageBox, QGraphicsOpacityEffect,
+                             QHBoxLayout, QMessageBox, QGraphicsOpacityEffect,
                              QGraphicsDropShadowEffect)
 
 from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QUrl, QThread, pyqtSignal
 from PyQt6.QtGui import QDesktopServices, QColor, QImage
 from core.config_manager import ConfigManager
 from core.app_launcher import launch_application, close_all_launched_apps
-from core.volume_manager import set_system_volume, get_current_volume
 from core.logger import get_logger
 from core.notification_manager import notification_manager, NotificationLevel
 from core.theme_manager import theme_manager
@@ -19,10 +18,8 @@ from ui.touch_dialogs import TouchConfirmDialog, TouchAdminLoginDialog
 from ui.widgets import apply_text_outline
 from ui.widgets.clock_widget import ClockWidget
 from ui.widgets.room_status_badge import RoomStatusBadge
-from ui.widgets.volume_control import VolumeControl
 from ui.widgets.app_grid import AppGrid
 from ui.widgets.toast_notification import ToastContainer
-from ui.widgets.notification_center import NotificationBell
 from ui.animations import DURATIONS, staggered_fade_in
 from ui.hdmi_viewer_window import HDMIViewerWindow
 from core.calendar_manager import CalendarManager
@@ -331,12 +328,6 @@ class MainWindow(QMainWindow):
         left_panel = QVBoxLayout()
         self.content_layout.addLayout(left_panel, 3)
 
-        bell_row = QHBoxLayout()
-        self.notification_bell = NotificationBell(self)
-        bell_row.addStretch()
-        bell_row.addWidget(self.notification_bell, 0, Qt.AlignmentFlag.AlignRight)
-        left_panel.addLayout(bell_row)
-
         self.clock_widget = ClockWidget(self, show_date=True)
         self.clock_widget.update()
         left_panel.addWidget(self.clock_widget)
@@ -362,11 +353,6 @@ class MainWindow(QMainWindow):
 
         # --- SECCIÓN DE CONTROLES INFERIORES ---
         controls_layout = QHBoxLayout()
-
-        # Control de Volumen (extraído)
-        self.volume_control = VolumeControl(self)
-        controls_layout.addWidget(self.volume_control)
-        self.volume_slider = self.volume_control.slider
 
         controls_layout.addStretch()
 
